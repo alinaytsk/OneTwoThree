@@ -1,0 +1,25 @@
+service: meetings-back
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: python3.11
+  region: us-east-1
+
+functions:
+  api:
+    handler: main.handler
+    events:
+      - http:
+          path: /{proxy+}
+          method: any
+      - http:
+          path: /
+          method: any
+
+plugins:
+  - serverless-python-requirements
+
+custom:
+  pythonRequirements:
+    dockerizePip: false
