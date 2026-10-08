@@ -113,7 +113,21 @@ function saveTokens(tokens: Tokens, previousRefresh?: string) {
   })
 }
 
-export const isSignedIn = () => readSession() !== null
+/**
+ * A stored session counts only when it can actually authenticate. With Cognito on, a session
+ * without an ID token is a leftover from a build where auth was disabled: treating it as signed
+ * in sends the user from /signup to /home and straight back here on the first 401, so the
+ * sign-up form can never be reached.
+ */
+export function isSignedIn(): boolean {
+  const session = readSession()
+  if (!session) return false
+  if (authEnabled() && !session.idToken) {
+    writeSession(null)
+    return false
+  }
+  return true
+}
 
 export function signOut() {
   writeSession(null)

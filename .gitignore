@@ -10,3 +10,7 @@ dist/
 
 # AWS app-stack overrides (may hold account-specific values)
 infra/*.params.env
+
+# Vite local env overrides (machine-specific build values)
+.env.local
+.env.*.local
