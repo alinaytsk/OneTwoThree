@@ -198,7 +198,7 @@ export async function resendCode(email: string): Promise<void> {
   await cognito("ResendConfirmationCode", { Username: email })
 }
 
-// --- Google (Hosted UI, authorization code + PKCE) ---
+// --- Managed login (hosted pages, authorization code + PKCE) ---
 
 const PKCE_KEY = "meetings.pkce"
 export const callbackUrl = () => `${window.location.origin}/auth/callback`
@@ -208,7 +208,12 @@ function base64Url(bytes: ArrayBuffer | Uint8Array): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
 }
 
-export async function startGoogleSignIn(): Promise<void> {
+/**
+ * Sends the browser to Cognito's hosted pages to sign in, with PKCE. Without an identity provider
+ * Cognito shows its own page, which offers the email and password form and Google side by side;
+ * naming one skips that page and goes straight to it.
+ */
+async function startHostedSignIn(identityProvider?: string): Promise<void> {
   const { clientId, domain } = authConfig()
   const verifier = base64Url(crypto.getRandomValues(new Uint8Array(32)))
   const state = base64Url(crypto.getRandomValues(new Uint8Array(16)))
@@ -217,7 +222,6 @@ export async function startGoogleSignIn(): Promise<void> {
   )
   sessionStorage.setItem(PKCE_KEY, JSON.stringify({ verifier, state }))
   const params = new URLSearchParams({
-    identity_provider: "Google",
     response_type: "code",
     client_id: clientId,
     redirect_uri: callbackUrl(),
@@ -226,8 +230,15 @@ export async function startGoogleSignIn(): Promise<void> {
     code_challenge_method: "S256",
     code_challenge: challenge,
   })
+  if (identityProvider) params.set("identity_provider", identityProvider)
   window.location.assign(`https://${domain}/oauth2/authorize?${params}`)
 }
+
+/** Cognito's own sign-in page, with every provider the pool offers. */
+export const startCognitoSignIn = () => startHostedSignIn()
+
+/** Straight to Google, skipping Cognito's provider choice. */
+export const startGoogleSignIn = () => startHostedSignIn("Google")
 
 /** Exchanges the code from the Hosted UI redirect for tokens. */
 export async function completeOAuthSignIn(code: string, state: string): Promise<void> {
