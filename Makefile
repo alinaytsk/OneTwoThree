@@ -245,15 +245,21 @@ aws-frontend-stack: ## Create/update the frontend stack (S3, CloudFront + WAF on
 
 .PHONY: aws-frontend-publish
 aws-frontend-publish: ## Build the SPA with VITE_API_URL=<function URL>, upload it, invalidate CloudFront
+	@# Vite fills import.meta.env from .env files only, so the build values are written to
+	@# front/.env.production.local (git-ignored); passing them on the command line is ignored.
 	@api="$(API_URL)"; bucket="$(call frontend_output,BucketName)"; dist="$(call frontend_output,DistributionId)"; \
 	[ -n "$$api" ] || { echo "Backend not deployed: run \`make aws-backend-deploy\` first"; exit 1; }; \
 	[ -n "$$bucket" ] || { echo "Frontend stack not found: run \`make aws-frontend-stack\` first"; exit 1; }; \
 	[ -n "$(COGNITO_POOL_ID)" ] || { echo "Cognito not deployed: run \`make aws-cognito-deploy\` first"; exit 1; }; \
 	echo "Building frontend with VITE_API_URL=$$api" && \
-	(cd front && npm ci --no-audit --no-fund && VITE_API_URL="$$api" \
-	  VITE_COGNITO_REGION=$(AWS_REGION) VITE_COGNITO_USER_POOL_ID=$(COGNITO_POOL_ID) \
-	  VITE_COGNITO_CLIENT_ID=$(COGNITO_CLIENT) VITE_COGNITO_DOMAIN=$(call cognito_output,HostedUiDomain) \
-	  VITE_COGNITO_GOOGLE=$(call cognito_output,GoogleEnabled) npm run build) && \
+	printf '%s\n' \
+	  "VITE_API_URL=$$api" \
+	  "VITE_COGNITO_REGION=$(AWS_REGION)" \
+	  "VITE_COGNITO_USER_POOL_ID=$(COGNITO_POOL_ID)" \
+	  "VITE_COGNITO_CLIENT_ID=$(COGNITO_CLIENT)" \
+	  "VITE_COGNITO_DOMAIN=$(call cognito_output,HostedUiDomain)" \
+	  "VITE_COGNITO_GOOGLE=$(call cognito_output,GoogleEnabled)" > front/.env.production.local && \
+	(cd front && npm ci --no-audit --no-fund && npm run build) && \
 	aws s3 sync front/dist "s3://$$bucket" --delete --exclude index.html \
 	  --cache-control "public,max-age=31536000,immutable" && \
 	aws s3 cp front/dist/index.html "s3://$$bucket/index.html" --cache-control "no-cache" && \
