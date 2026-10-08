@@ -48,7 +48,7 @@ front/            # Vite + React + TypeScript + Tailwind + shadcn/ui
     lib/auth.ts   # Cognito sign-in/up, session and token refresh, Google (Hosted UI + PKCE)
     lib/api.ts    # typed fetch wrapper (VITE_API_URL = backend origin, empty = same origin)
   nginx.conf      # serves the SPA, proxies /api to backend
-infra/            # CloudFormation: cognito, backend-ecr, backend (Lambda + Aurora), frontend (S3 + CloudFront)
+infra/            # CloudFormation: cognito, auth, backend-ecr, backend (Lambda + Aurora), frontend (S3 + CloudFront)
 ```
 
 ## API
@@ -181,6 +181,12 @@ flowchart LR
    3. **Frontend** (`make aws-frontend-deploy`): frontend stack → `npm run build` with `VITE_API_URL=<function URL>` and the `VITE_COGNITO_*` IDs → upload to S3 and invalidate CloudFront → allow the site's origin in the backend's `CORS_ORIGINS` and as a Cognito redirect URL. It prints the site URL.
 
 Other targets: `make aws-backend-outputs`, `aws-backend-status`, `aws-backend-logs`, `aws-backend-health`, `aws-backend-migrate`, `aws-frontend-outputs`, `aws-frontend-publish` (rebuild and upload the frontend only), `aws-destroy`. Use `ARCH=amd64` to build an x86 Lambda instead of Graviton (`arm64`, the default). Use `CLOUDFRONT_PLAN=PAY_AS_YOU_GO` if the account can't subscribe to the Free plan (accounts on the AWS Free Tier are not eligible, and each account gets at most 3 free plans).
+
+`front/.env.production.local` is deliberately not in git: Vite's `.env*.local` files hold
+machine-specific build values. Nothing is lost by that, because `aws-frontend-publish` passes the
+same values on its own, read from the live stack outputs. To rebuild the frontend against the
+`demo-auth` pool from `infra/auth.yaml` instead of the default one, run
+`make aws-frontend-publish COGNITO_STACK=demo-auth`.
 
 ### Custom domain for the frontend (optional)
 
