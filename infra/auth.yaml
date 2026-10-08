@@ -1,0 +1,144 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Lab 4 step 2 - a standalone Cognito user pool on the Essentials tier: email as the username with
+  self sign-up and email verification, Google as a federated provider, a public app client for the
+  SPA, and a managed login (version 2) domain with Cognito's own branding.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: demo
+    Description: Name prefix for the resources and the value of their PROJECT_NAME tag.
+  GoogleClientId:
+    Type: String
+    Default: "ВАШ_GOOGLE_CLIENT_ID"
+    Description: OAuth client ID from Google Cloud.
+  GoogleClientSecret:
+    Type: String
+    Default: "ВАШ_GOOGLE_CLIENT_SECRET"
+    NoEcho: true
+    Description: OAuth client secret from Google Cloud.
+  CallbackUrls:
+    Type: CommaDelimitedList
+    Default: https://dm3js9endd52u.cloudfront.net/,http://localhost:5173/,https://dm3js9endd52u.cloudfront.net/auth/callback,http://localhost:5173/auth/callback
+    Description: Where managed login may send users back after signing in (the SPA uses /auth/callback).
+  LogoutUrls:
+    Type: CommaDelimitedList
+    Default: https://dm3js9endd52u.cloudfront.net/,http://localhost:5173/
+    Description: Where managed login may send users after signing out.
+
+Resources:
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub ${ProjectName}-users
+      # Managed login version 2 and its branding need Essentials (Lite does not support them).
+      UserPoolTier: ESSENTIALS
+      UserPoolTags:
+        PROJECT_NAME: !Ref ProjectName
+      # Users sign in with their email; Cognito emails a code to verify it on sign-up.
+      UsernameAttributes: [email]
+      UsernameConfiguration:
+        CaseSensitive: false
+      AutoVerifiedAttributes: [email]
+      # Self sign-up: anyone may create an account, no admin invitation needed.
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - { Name: verified_email, Priority: 1 }
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireUppercase: false
+          RequireSymbols: false
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      Schema:
+        - { Name: email, AttributeDataType: String, Required: true, Mutable: true }
+
+  GoogleIdentityProvider:
+    Type: AWS::Cognito::UserPoolIdentityProvider
+    Properties:
+      UserPoolId: !Ref UserPool
+      ProviderName: Google
+      ProviderType: Google
+      ProviderDetails:
+        client_id: !Ref GoogleClientId
+        client_secret: !Ref GoogleClientSecret
+        authorize_scopes: openid email profile
+      AttributeMapping:
+        email: email
+        email_verified: email_verified
+
+  # Public client (no secret): the browser talks to Cognito directly and only ever holds tokens.
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    # The provider must exist before the client may list Google among its providers.
+    DependsOn: GoogleIdentityProvider
+    Properties:
+      ClientName: !Sub ${ProjectName}-web
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      SupportedIdentityProviders: [COGNITO, Google]
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [code]
+      AllowedOAuthScopes: [openid, email, profile]
+      CallbackURLs: !Ref CallbackUrls
+      LogoutURLs: !Ref LogoutUrls
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED
+      EnableTokenRevocation: true
+
+  # Hosted sign-in pages. The prefix must be unique across all of AWS, hence the account ID.
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Sub ${ProjectName}-auth-${AWS::AccountId}
+      ManagedLoginVersion: 2
+
+  # Managed login styled with Cognito's defaults; no custom assets to upload.
+  ManagedLoginBranding:
+    Type: AWS::Cognito::ManagedLoginBranding
+    DependsOn: UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientId: !Ref UserPoolClient
+      UseCognitoProvidedValues: true
+
+Outputs:
+  UserPoolId:
+    Description: ID of the Cognito user pool.
+    Value: !Ref UserPool
+  ClientId:
+    Description: ID of the public app client used by the SPA.
+    Value: !Ref UserPoolClient
+  DomainPrefix:
+    Description: Prefix of the managed login domain.
+    Value: !Ref UserPoolDomain
+  LoginUrl:
+    Description: Full managed login domain.
+    Value: !Sub https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com
+
+  # Same names as infra/cognito.yaml, so the Makefile targets can read this stack instead
+  # by passing COGNITO_STACK=demo-auth.
+  UserPoolClientId:
+    Description: Alias of ClientId under the name the Makefile expects.
+    Value: !Ref UserPoolClient
+  Region:
+    Value: !Ref AWS::Region
+  Issuer:
+    Description: Issuer (iss) of the pool's tokens; its JWKS is at <Issuer>/.well-known/jwks.json.
+    Value: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}
+  HostedUiDomain:
+    Description: Domain of the managed login / OAuth endpoints.
+    Value: !Sub ${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com
+  GoogleEnabled:
+    Description: Google is always configured in this stack.
+    Value: "true"
