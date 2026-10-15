@@ -64,7 +64,11 @@ HASH        := \#
 COMMA       := ,
 # $(shell) does not inherit exported variables in GNU make < 4.4 (macOS ships 3.81),
 # so AWS lookups inside $(shell) load .env themselves.
-LOAD_ENV    := set -a; [ -f .env ] && . ./.env; set +a; export AWS_REGION=$(AWS_REGION) AWS_DEFAULT_REGION=$(AWS_REGION);
+# The CRs are stripped because a .env written on Windows has CRLF line endings, and `.` keeps
+# the CR inside the value: the credentials then end in ^M, every aws call fails to authenticate,
+# and the error is hidden by the 2>/dev/null below, so lookups just come back empty. make itself
+# drops the CR when it parses .env, which is why recipes work while these lookups do not.
+LOAD_ENV    := set -a; [ -f .env ] && . <(tr -d '\r' < .env); set +a; export AWS_REGION=$(AWS_REGION) AWS_DEFAULT_REGION=$(AWS_REGION);
 AWS_SHELL   := $(LOAD_ENV) aws
 # Recursive (=) so they are looked up only when a recipe needs them, after the stacks exist.
 stack_output = $(shell $(AWS_SHELL) cloudformation describe-stacks --stack-name $(1) \

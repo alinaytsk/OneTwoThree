@@ -1,0 +1,11 @@
+# core.autocrlf=true checks every text file out with CRLF on Windows. For files a shell reads
+# that is not harmless: `.` keeps the CR inside the value, so a credential sourced from a CRLF
+# .env ends in ^M and every aws call fails to authenticate. Pin those files to LF instead.
+.env.example     text eol=lf
+Makefile         text eol=lf
+*.sh             text eol=lf
+compose.yaml     text eol=lf
+
+# Keeps the diff of the lab templates readable on every platform.
+*.yml            text eol=lf
+*.yaml           text eol=lf
