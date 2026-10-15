@@ -13,6 +13,9 @@ dependencies = [
     "pydantic-settings>=2.3",
     "mangum>=0.19",
     "pyjwt[crypto]>=2.9",
+    # Weekly report Lambda: S3 writes, and a tz database the Lambda image does not ship.
+    "boto3>=1.35",
+    "tzdata>=2024.1",
 ]
 
 [dependency-groups]

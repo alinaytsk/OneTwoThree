@@ -32,6 +32,10 @@ BACKEND_FUNCTION  := $(PROJECT)-backend
 BACKEND_PARAMS    := infra/backend.params.env
 FRONTEND_STACK    := $(PROJECT)-frontend
 COGNITO_STACK     := $(PROJECT)-cognito
+REPORTS_STACK     := $(PROJECT)-reports
+REPORTS_QUEUE     := $(PROJECT)-report-requests
+MAILER_FUNCTION   := $(PROJECT)-report-mailer
+MAILER_SRC        := infra/lambda/report_mailer.py
 # Every resource gets this tag (in the templates and as a stack tag).
 STACK_TAGS        := PROJECT_NAME=$(PROJECT)
 
@@ -44,6 +48,16 @@ FRONTEND_DOMAIN   ?= onetwothree.dobosevych.com
 CERT_SH           := PROJECT_NAME=$(PROJECT) infra/scripts/cert.sh
 # Browser origins the API always allows besides the frontend's (local development).
 CORS_LOCAL        ?= http://localhost:3000,http://localhost:5173
+
+# --- Weekly report (`make aws-reports-deploy`) ---
+# MAIL_FROM and MAIL_TO belong in .env; the sender has to be verified in SES first.
+REPORT_TIMEZONE   ?= Europe/Kyiv
+REPORT_RETENTION  ?= 90
+# SQS needs the queue's visibility timeout to be at least the consumer's timeout, and AWS
+# recommends 6x, so both come from this one number instead of drifting apart.
+BUILDER_TIMEOUT   ?= 120
+# Optional: creates the SES domain identity, whose DKIM records are published by hand.
+SES_DOMAIN        ?=
 
 LAMBDA_ARCH  = $(if $(filter arm64,$(ARCH)),arm64,x86_64)
 HASH        := \#
@@ -61,6 +75,7 @@ BACKEND_PARAMS_ARGS = $(shell [ -f $(BACKEND_PARAMS) ] && grep -v -e '^[[:space:
 backend_output  = $(call stack_output,$(BACKEND_STACK),$(1))
 frontend_output = $(call stack_output,$(FRONTEND_STACK),$(1))
 cognito_output  = $(call stack_output,$(COGNITO_STACK),$(1))
+reports_output  = $(call stack_output,$(REPORTS_STACK),$(1))
 API_URL          = $(call backend_output,ApiUrl)
 FRONTEND_ORIGINS = $(call frontend_output,SiteOrigins)
 CORS_ORIGINS_AWS = $(CORS_LOCAL)$(if $(FRONTEND_ORIGINS),$(COMMA)$(FRONTEND_ORIGINS))
@@ -141,7 +156,7 @@ test-front: ## Frontend tests
 lint: ## Code style checks (same as CI)
 	cd back && uv run ruff check . && uv run ruff format --check .
 	cd front && npm run lint && npm run format:check && npm run typecheck
-	uvx cfn-lint infra/*.yaml
+	uvx cfn-lint infra/*.yaml infra/*.yml
 
 .PHONY: format
 format: ## Auto-format backend and frontend
@@ -356,6 +371,108 @@ aws-cognito-destroy: aws-check ## Delete the Cognito stack — ALL user accounts
 	@read -p "Delete stack $(COGNITO_STACK) and every user account in it? [y/N] " ok && [ "$$ok" = y ]
 	aws cloudformation delete-stack --stack-name $(COGNITO_STACK)
 	aws cloudformation wait stack-delete-complete --stack-name $(COGNITO_STACK)
+
+##@ AWS weekly report (S3 + SQS + EventBridge Scheduler + two Lambdas + SES)
+
+.PHONY: aws-reports-deploy
+aws-reports-deploy: aws-check aws-reports-stack aws-reports-mailer-code ## Deploy the weekly report: stack, then the mailer handler
+	@echo
+	@echo "Bucket:   $(call reports_output,ReportsBucketName)"
+	@echo "Queue:    $(call reports_output,ReportRequestsQueueUrl)"
+	@echo "Schedule: Monday 07:00 $(REPORT_TIMEZONE)  (one-off: make report-now WEEK=$$(date +%G-W%V))"
+
+.PHONY: aws-reports-stack
+aws-reports-stack: ## Create/update the reports stack with image tag $(TAG); KEEP_IMAGE=1 keeps the current image
+	$(call clear_failed_stack,$(REPORTS_STACK))
+	@test -n "$(ECR_URI)" || { echo "ECR repository not found: run \`make aws-backend-ecr\` first"; exit 1; }
+	@test -n "$(MAIL_FROM)" -a -n "$(MAIL_TO)" || { echo "Set MAIL_FROM and MAIL_TO in .env (the sender must be verified in SES)"; exit 1; }
+	@# The reports stack reads the network from the backend stack. The route table and these
+	@# outputs were added for this lab, so an older backend stack has to be updated once.
+	@test -n "$(call backend_output,PrivateRouteTableId)" || { \
+	  echo "Backend stack has no PrivateRouteTableId output — it predates infra/reports.yml."; \
+	  echo "Update it first:  make aws-backend-stack KEEP_IMAGE=1"; exit 1; }
+	aws cloudformation deploy --stack-name $(REPORTS_STACK) --template-file infra/reports.yml \
+	  --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset --tags $(STACK_TAGS) \
+	  --parameter-overrides ProjectName=$(PROJECT) $(if $(KEEP_IMAGE),,ImageUri=$(ECR_URI):$(TAG)) \
+	    Architecture=$(LAMBDA_ARCH) \
+	    VpcId=$(call backend_output,VpcId) \
+	    "SubnetIds=$(call backend_output,PrivateSubnetIds)" \
+	    SecurityGroupId=$(call backend_output,BackendSecurityGroupId) \
+	    RouteTableId=$(call backend_output,PrivateRouteTableId) \
+	    DbEndpoint=$(call backend_output,DbEndpoint) DbPort=$(call backend_output,DbPort) \
+	    DbName=$(call backend_output,DbName) DbUsername=$(call backend_output,DbUsername) \
+	    DbSecretArn=$(call backend_output,DbSecretArn) \
+	    BuilderTimeout=$(BUILDER_TIMEOUT) QueueVisibilityTimeout=$$(( $(BUILDER_TIMEOUT) * 6 )) \
+	    ReportTimezone=$(REPORT_TIMEZONE) RetentionDays=$(REPORT_RETENTION) \
+	    "MailFrom=$(MAIL_FROM)" "MailTo=$(MAIL_TO)" "SesDomain=$(SES_DOMAIN)"
+
+.PHONY: aws-reports-mailer-code
+aws-reports-mailer-code: ## Upload $(MAILER_SRC) to the mailer Lambda (the stack only carries a placeholder)
+	@py=$$(command -v python3 || command -v python) || { echo "python not found"; exit 1; }; \
+	tmp=$$(mktemp -d); \
+	"$$py" -c "import sys, zipfile; zipfile.ZipFile(sys.argv[1], 'w', zipfile.ZIP_DEFLATED).write(sys.argv[2], 'report_mailer.py')" \
+	  "$$tmp/mailer.zip" "$(MAILER_SRC)" && \
+	aws lambda update-function-code --function-name $(MAILER_FUNCTION) \
+	  --zip-file "fileb://$$tmp/mailer.zip" --publish \
+	  --query "[FunctionName, LastUpdateStatus, CodeSize]" --output text; \
+	status=$$?; rm -rf "$$tmp"; exit $$status
+
+.PHONY: report-now
+report-now: ## Build one week's report immediately: make report-now WEEK=2026-W40 [FORCE=1]
+	@test -n "$(WEEK)" || { echo "Usage: make report-now WEEK=2026-W40 [FORCE=1]   (this week: $$(date +%G-W%V))"; exit 1; }
+	@# Prefer the stack output; fall back to looking the queue up by name if the stack is gone.
+	@url="$(call reports_output,ReportRequestsQueueUrl)"; \
+	[ -n "$$url" ] && [ "$$url" != None ] || \
+	  url=$$(aws sqs get-queue-url --queue-name $(REPORTS_QUEUE) --query QueueUrl --output text); \
+	[ -n "$$url" ] || { echo "Queue $(REPORTS_QUEUE) not found: run \`make aws-reports-deploy\` first"; exit 1; }; \
+	body='{"week": "$(WEEK)", "source": "manual"$(if $(FORCE),$(COMMA) "force": true)}'; \
+	echo "aws sqs send-message --queue-url $$url --message-body '$$body'"; \
+	aws sqs send-message --queue-url "$$url" --message-body "$$body" --query MessageId --output text
+	@echo "Queued. Watch it: make aws-reports-logs   Fetch it: make aws-reports-get WEEK=$(WEEK)"
+
+.PHONY: aws-reports-get
+aws-reports-get: ## Download a built report: make aws-reports-get WEEK=2026-W40
+	@test -n "$(WEEK)" || { echo "Usage: make aws-reports-get WEEK=2026-W40"; exit 1; }
+	aws s3 cp "s3://$(call reports_output,ReportsBucketName)/reports/$(WEEK).csv" -
+
+.PHONY: aws-reports-logs
+aws-reports-logs: ## Tail both report Lambdas (FN=builder or FN=mailer for one of them)
+	aws logs tail /aws/lambda/$(PROJECT)-report-$(or $(FN),builder) --follow --since 30m
+
+.PHONY: aws-reports-status
+aws-reports-status: ## Show the schedule, what is in the queues and the reports in the bucket
+	@aws scheduler get-schedule --name $(PROJECT)-weekly-report \
+	  --query "{state:State, cron:ScheduleExpression, tz:ScheduleExpressionTimezone, target:Target.Arn}" --output yaml
+	@for q in $(REPORTS_QUEUE) $(REPORTS_QUEUE)-dlq; do \
+	  url=$$(aws sqs get-queue-url --queue-name $$q --query QueueUrl --output text 2>/dev/null) || continue; \
+	  echo "$$q: $$(aws sqs get-queue-attributes --queue-url $$url \
+	    --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible \
+	    --query 'Attributes.[ApproximateNumberOfMessages,ApproximateNumberOfMessagesNotVisible]' --output text) (visible / in flight)"; \
+	done
+	@aws s3 ls "s3://$(call reports_output,ReportsBucketName)/reports/" || true
+
+.PHONY: aws-reports-outputs
+aws-reports-outputs: ## Show reports stack outputs (bucket, queues, functions)
+	@aws cloudformation describe-stacks --stack-name $(REPORTS_STACK) \
+	  --query "Stacks[0].Outputs[].[OutputKey, OutputValue]" --output table
+
+.PHONY: aws-reports-dkim
+aws-reports-dkim: ## Print the DKIM CNAME records to publish for SES_DOMAIN
+	@test -n "$(SES_DOMAIN)" || { echo "Set SES_DOMAIN in .env (or verify the sender address by hand in SES)"; exit 1; }
+	@echo "Publish these three CNAMEs in the DNS of $(SES_DOMAIN), then wait for Status=SUCCESS:"
+	@aws sesv2 get-email-identity --email-identity $(SES_DOMAIN) \
+	  --query "DkimAttributes.Tokens" --output text | tr '\t' '\n' | \
+	  while read -r t; do echo "  $$t._domainkey.$(SES_DOMAIN).  CNAME  $$t.dkim.amazonses.com."; done
+	@echo
+	@aws sesv2 get-email-identity --email-identity $(SES_DOMAIN) \
+	  --query "{verified:VerifiedForSendingStatus, dkim:DkimAttributes.Status}" --output yaml
+
+.PHONY: aws-reports-destroy
+aws-reports-destroy: aws-check ## Empty the reports bucket and delete the reports stack
+	@read -p "Delete stack $(REPORTS_STACK) and every report in its bucket? [y/N] " ok && [ "$$ok" = y ]
+	@bucket="$(call reports_output,ReportsBucketName)"; [ -z "$$bucket" ] || aws s3 rm "s3://$$bucket" --recursive --quiet
+	aws cloudformation delete-stack --stack-name $(REPORTS_STACK)
+	aws cloudformation wait stack-delete-complete --stack-name $(REPORTS_STACK)
 
 ##@ AWS (all parts)
 

@@ -130,6 +130,30 @@ Resources:
         - Key: PROJECT_NAME
           Value: !Ref ProjectName
 
+  # An explicit route table instead of the VPC's main one: a gateway VPC endpoint has to be
+  # attached to route tables by ID, and the main route table has no ID this stack can hand out.
+  # It carries only the local route, exactly like the main table it replaces for these subnets.
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - { Key: Name, Value: !Sub "${ProjectName}-private" }
+        - Key: PROJECT_NAME
+          Value: !Ref ProjectName
+
+  PrivateSubnet1RouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
   # --- Security groups ---
   BackendSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -324,6 +348,27 @@ Outputs:
   DbEndpoint:
     Description: Aurora writer endpoint (reachable only from inside the VPC).
     Value: !GetAtt DbCluster.Endpoint.Address
+  DbPort:
+    Value: !GetAtt DbCluster.Endpoint.Port
+  DbName:
+    Description: Database the application uses.
+    Value: !Ref DbName
+  DbUsername:
+    Description: Database user the application connects as.
+    Value: !Ref DbUsername
   DbSecretArn:
     Description: Secrets Manager secret with the database master credentials.
     Value: !Ref DbSecret
+
+  # --- Network, for stacks that put more Lambdas next to this one (infra/reports.yml) ---
+  VpcId:
+    Value: !Ref Vpc
+  PrivateSubnetIds:
+    Description: Comma-separated private subnets to place VPC-attached Lambdas in.
+    Value: !Join [",", [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
+  BackendSecurityGroupId:
+    Description: Security group allowed to reach the database.
+    Value: !Ref BackendSecurityGroup
+  PrivateRouteTableId:
+    Description: Route table of the private subnets; gateway VPC endpoints attach to it.
+    Value: !Ref PrivateRouteTable

@@ -34,6 +34,7 @@ back/             # FastAPI + SQLAlchemy 2 + Alembic
     schemas.py    # Pydantic request/response models
     services/     # business logic
     routers/      # /api/meetings, /api/participants, /api/health
+    reports/      # weekly report: weekly.py (CSV from the DB), lambda_handler.py (builder Lambda)
   alembic/        # migrations (run on container start; on AWS via `make aws-backend-migrate`)
   Dockerfile.lambda # AWS Lambda image
   tests/
@@ -48,7 +49,9 @@ front/            # Vite + React + TypeScript + Tailwind + shadcn/ui
     lib/auth.ts   # Cognito sign-in/up, session and token refresh, Google (Hosted UI + PKCE)
     lib/api.ts    # typed fetch wrapper (VITE_API_URL = backend origin, empty = same origin)
   nginx.conf      # serves the SPA, proxies /api to backend
-infra/            # CloudFormation: cognito, auth, backend-ecr, backend (Lambda + Aurora), frontend (S3 + CloudFront)
+infra/            # CloudFormation: cognito, auth, backend-ecr, backend (Lambda + Aurora), frontend (S3 + CloudFront),
+                  # reports.yml (S3 + SQS + Scheduler + 2 Lambdas + SES)
+  lambda/         # report_mailer.py — the mailer Lambda, deployed as a zip, not in the backend image
 ```
 
 ## API
@@ -206,3 +209,109 @@ make aws-frontend-https-check # 3. curl https://onetwothree.dobosevych.com/
 **Cost.** There is no load balancer, NAT gateway or public IPv4 address. Lambda and function URLs fit in the always-free tier for a small app. CloudFront runs on the flat-rate Free plan, which costs $0 with no overage charges and also covers its WAF web ACL (a per-IP rate limit). Requests that WAF blocks don't count toward the plan's allowance. Aurora Serverless v2 has no free tier. With `DbMinCapacity=0` it pauses after 5 idle minutes, and then you pay only for storage (about $0.10/GB-month). While active it costs about $0.12 per ACU-hour. The first request after a pause waits about 15 seconds while Aurora resumes. The DB credentials secret costs $0.40/month. Run `make aws-destroy` when you are done. It keeps a final Aurora snapshot.
 
 On AWS the backend reads `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` and `DB_PASSWORD` instead of `DATABASE_URL`. The password is generated in Secrets Manager and resolved into the function's environment at deploy time, so the VPC needs no internet access. `DB_NULL_POOL=true` closes connections after each request, because idle connections from warm Lambdas would stop Aurora from pausing. Migrations do not run on cold start. `make aws-backend-migrate` runs them, and every `aws-backend-deploy` calls it.
+
+## Weekly meetings report (event driven)
+
+Every Monday at 07:00 Europe/Kyiv a CSV report for the week that just ended is built and emailed.
+Nothing polls; each step is triggered by the previous one.
+
+```
+EventBridge Scheduler          cron(0 7 ? * MON *), Europe/Kyiv, FlexibleTimeWindow OFF
+      │ SendMessage  {"source": "schedule"}
+      ▼
+SQS meetings-report-requests   maxReceiveCount 3 → meetings-report-requests-dlq
+      │ EventSourceMapping, BatchSize 1
+      ▼
+Lambda meetings-report-builder backend image, CMD app.reports.lambda_handler.handler
+      │                        in the VPC (it reads Aurora), S3 over the gateway endpoint
+      │ PutObject  reports/<week>.csv
+      ▼
+S3 meetings-reports-<account>  private, objects expire after 90 days
+      │ ObjectCreated, prefix reports/, suffix .csv
+      ▼
+Lambda meetings-report-mailer  outside the VPC (it needs SES), zip, stdlib + boto3
+      │ sesv2:SendEmail, Raw content, CSV attached
+      ▼
+MAIL_TO
+```
+
+The queue sits between the schedule and the builder on purpose: the schedule targets SQS rather
+than invoking the function, so retries, the DLQ and a manual `make report-now` all work the same
+way, and a cold Aurora cannot make the schedule itself fail.
+
+**What is in the report.** Meetings and total hours for the week, the same two numbers for the
+previous week with the delta, the five longest meetings (title, start, duration, participant
+count), and a breakdown per person. The schema has no organiser/member tables, so "organiser"
+means the owner of the meeting (`meetings.owner_id`) and "members" are its participants.
+
+Week boundaries are Monday 00:00 to the next Monday 00:00 in `REPORT_TIMEZONE`, not UTC.
+`build_weekly_report(week)` never decides what "last week" is — the week is always passed in, so
+any past week can be rebuilt and the same week always produces the same file,
+`reports/<week>.csv` (`report_key(week)`, shared by both Lambdas).
+
+### Deploy
+
+The reports stack reads the VPC, subnets, security group, route table and database from the
+backend stack's outputs. The route table and those outputs were added for this feature, so an
+existing backend stack has to be updated once:
+
+```bash
+make aws-backend-stack KEEP_IMAGE=1    # adds the private route table + network outputs
+```
+
+Then set the mail addresses in `.env` (`MAIL_FROM`, `MAIL_TO`, optionally `SES_DOMAIN`) and:
+
+```bash
+make aws-reports-deploy                # stack, then the mailer handler zip
+make report-now WEEK=2026-W40          # build one week immediately (FORCE=1 to overwrite)
+make aws-reports-status                # schedule, queue depth, what is in the bucket
+make aws-reports-logs                  # tail the builder (FN=mailer for the other one)
+make aws-reports-get WEEK=2026-W40     # print a built report
+make aws-reports-destroy               # empty the bucket and delete the stack
+```
+
+Two things are worth knowing about this deploy:
+
+- **The mailer code is uploaded separately.** `infra/reports.yml` carries only a placeholder for
+  it, because inline CloudFormation code is capped at 4 KB and the handler is easier to review as
+  a file. `make aws-reports-mailer-code` zips `infra/lambda/report_mailer.py` and uploads it;
+  `aws-reports-deploy` runs both steps. CloudFormation restores the placeholder on every stack
+  update, so re-run that target (or the whole `aws-reports-deploy`) after changing the stack.
+- **SES verification is manual.** With `SES_DOMAIN` set, the stack creates the domain identity;
+  `make aws-reports-dkim` then prints the three `CNAME` records to publish in that domain's DNS
+  by hand. Until they resolve, the identity stays unverified and SES refuses to send. A new
+  account is also in the **SES sandbox**, where every `MAIL_TO` address must be verified
+  separately and the daily quota is 200 messages — request production access to lift that.
+
+### Logs
+
+Both functions log one `key=value` line per run, so CloudWatch Logs Insights can group them:
+
+```
+fields @timestamp, @message
+| filter @message like /report-builder triggered/
+| parse @message "trigger=* source=* week=* key=*" as trigger, source, week, key
+| sort @timestamp desc
+```
+
+`trigger` is the transport (`schedule` for a direct invocation, `sqs`, `manual`) and `source` is
+what asked for the report (`schedule`, `manual`), so the Monday runs appear as
+`trigger=sqs source=schedule`.
+
+### Idempotency and loops
+
+The builder calls `HeadObject` before writing and skips a week whose report already exists
+(`FORCE=1` / `{"force": true}` overrides). So a redelivered SQS message does not write the object
+a second time, and therefore does not fire a second email.
+
+The mailer only ever reads: its role has `s3:GetObject` and no `PutObject`, and it writes nothing
+back under `reports/`. A write there would match the same notification filter that invoked it and
+the function would keep emailing itself.
+
+### Cost
+
+The S3 gateway endpoint, SQS, EventBridge Scheduler and SES all stay inside their free
+allowances at this volume (one report a week, a few KB each): the gateway endpoint is free,
+SQS gives a million requests a month, Scheduler 14 million invocations, and SES $0.10 per
+thousand emails. The report adds no always-on cost — and specifically no NAT gateway, which is
+the whole reason the mailer lives outside the VPC.
