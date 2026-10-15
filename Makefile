@@ -80,19 +80,14 @@ backend_output  = $(call stack_output,$(BACKEND_STACK),$(1))
 frontend_output = $(call stack_output,$(FRONTEND_STACK),$(1))
 cognito_output  = $(call stack_output,$(COGNITO_STACK),$(1))
 reports_output  = $(call stack_output,$(REPORTS_STACK),$(1))
-# The report builder runs the backend image, so it has to name an image that is actually in ECR.
-# $(TAG) is derived from the working tree, so it names an image nobody ever pushed whenever the
-# tree is dirty - and Lambda then fails the stack with "Source image does not exist". Default to
-# the image the API Lambda is running instead, which is also the image the builder should match;
-# IMAGE_URI=... overrides it, e.g. after `make aws-backend-push`.
-BACKEND_IMAGE   = $(shell $(AWS_SHELL) lambda get-function --function-name $(BACKEND_FUNCTION) \
-                    --query Code.ImageUri --output text 2>/dev/null)
-REPORTS_IMAGE   = $(or $(IMAGE_URI),$(BACKEND_IMAGE))
-# Architecture has to agree with the image, or Lambda rejects the function. Take it from the same
-# place the image comes from; an explicit IMAGE_URI means the caller picks (ARCH=, default arm64).
-BACKEND_ARCH    = $(shell $(AWS_SHELL) lambda get-function-configuration \
-                    --function-name $(BACKEND_FUNCTION) --query "Architectures[0]" --output text 2>/dev/null)
-REPORTS_ARCH    = $(if $(IMAGE_URI),$(LAMBDA_ARCH),$(or $(BACKEND_ARCH),$(LAMBDA_ARCH)))
+# The builder runs the backend image, so that image has to contain app/reports. Hence
+# aws-reports-deploy builds and pushes it, and deploys exactly the tag it just pushed.
+# Reusing whatever image the API happens to be running does not work: it can predate the feature,
+# and then the stack deploys green while every run dies on "No module named 'app.reports'".
+# $(TAG) alone does not work either - with a dirty tree it names an image nobody pushed, and the
+# stack fails with "Source image does not exist" - which is why the push is a prerequisite and the
+# recipe checks ECR before deploying. (The API keeps its own image until aws-backend-stack runs.)
+REPORTS_IMAGE   = $(or $(IMAGE_URI),$(ECR_URI):$(TAG))
 API_URL          = $(call backend_output,ApiUrl)
 FRONTEND_ORIGINS = $(call frontend_output,SiteOrigins)
 CORS_ORIGINS_AWS = $(CORS_LOCAL)$(if $(FRONTEND_ORIGINS),$(COMMA)$(FRONTEND_ORIGINS))
@@ -392,18 +387,20 @@ aws-cognito-destroy: aws-check ## Delete the Cognito stack — ALL user accounts
 ##@ AWS weekly report (S3 + SQS + EventBridge Scheduler + two Lambdas + SES)
 
 .PHONY: aws-reports-deploy
-aws-reports-deploy: aws-check aws-reports-stack aws-reports-mailer-code ## Deploy the weekly report: stack, then the mailer handler
+aws-reports-deploy: aws-check aws-backend-push aws-reports-stack aws-reports-mailer-code ## Deploy the weekly report: build and push the image, the stack, then the mailer handler
 	@echo
 	@echo "Bucket:   $(call reports_output,ReportsBucketName)"
 	@echo "Queue:    $(call reports_output,ReportRequestsQueueUrl)"
 	@echo "Schedule: Monday 07:00 $(REPORT_TIMEZONE)  (one-off: make report-now WEEK=$$(date +%G-W%V))"
 
 .PHONY: aws-reports-stack
-aws-reports-stack: ## Create/update the reports stack on the image the API runs; IMAGE_URI=... to override, KEEP_IMAGE=1 to keep the stack's
+aws-reports-stack: ## Create/update the reports stack with image tag $(TAG) (must already be pushed); IMAGE_URI=... or KEEP_IMAGE=1 to override
 	$(call clear_failed_stack,$(REPORTS_STACK))
-	@test -n "$(KEEP_IMAGE)$(REPORTS_IMAGE)" || { \
-	  echo "No backend image found: deploy the backend first (\`make aws-backend-deploy\`),"; \
-	  echo "or name one explicitly:  make aws-reports-stack IMAGE_URI=<account>.dkr.ecr.<region>.amazonaws.com/$(PROJECT)-backend:<tag>"; exit 1; }
+	@test -n "$(KEEP_IMAGE)$(IMAGE_URI)" || \
+	  aws ecr describe-images --repository-name $(PROJECT)-backend --image-ids imageTag=$(TAG) >/dev/null 2>&1 || { \
+	    echo "Image $(PROJECT)-backend:$(TAG) is not in ECR, so the stack would roll back."; \
+	    echo "Use \`make aws-reports-deploy\` (it builds and pushes first), or \`make aws-backend-push\`,"; \
+	    echo "or pass IMAGE_URI=<uri> / KEEP_IMAGE=1 to keep the image the stack already has."; exit 1; }
 	@test -n "$(MAIL_FROM)" -a -n "$(MAIL_TO)" || { echo "Set MAIL_FROM and MAIL_TO in .env (the sender must be verified in SES)"; exit 1; }
 	@# The reports stack reads the network from the backend stack. The route table and these
 	@# outputs were added for this lab, so an older backend stack has to be updated once.
@@ -413,7 +410,7 @@ aws-reports-stack: ## Create/update the reports stack on the image the API runs;
 	aws cloudformation deploy --stack-name $(REPORTS_STACK) --template-file infra/reports.yml \
 	  --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset --tags $(STACK_TAGS) \
 	  --parameter-overrides ProjectName=$(PROJECT) $(if $(KEEP_IMAGE),,ImageUri=$(REPORTS_IMAGE)) \
-	    Architecture=$(REPORTS_ARCH) \
+	    Architecture=$(LAMBDA_ARCH) \
 	    VpcId=$(call backend_output,VpcId) \
 	    "SubnetIds=$(call backend_output,PrivateSubnetIds)" \
 	    SecurityGroupId=$(call backend_output,BackendSecurityGroupId) \

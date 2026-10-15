@@ -272,12 +272,13 @@ make aws-reports-destroy               # empty the bucket and delete the stack
 
 Three things are worth knowing about this deploy:
 
-- **The builder runs the image the API is already running.** `aws-reports-stack` reads it from
-  the deployed backend Lambda rather than from `$(TAG)`, because `TAG` is derived from the working
-  tree: with uncommitted changes it names an image nobody pushed, and Lambda then fails the stack
-  with *Source image does not exist*. The architecture is read from the same place, so it cannot
-  disagree with the image. To use a freshly built image, run `make aws-backend-push` and pass
-  `IMAGE_URI=<uri>`.
+- **The deploy builds the image.** The builder runs the backend image, so that image has to
+  contain `app/reports` — `aws-reports-deploy` therefore depends on `aws-backend-push` and deploys
+  exactly the tag it just pushed. Pointing it at the image the API happens to be running is not
+  enough: if that image predates the feature, the stack deploys green and every run then dies on
+  *No module named 'app.reports'*. `aws-reports-stack` on its own checks the tag is in ECR first,
+  so a missing image fails in a second instead of after a stack rollback. `IMAGE_URI=<uri>` names
+  an image explicitly, `KEEP_IMAGE=1` keeps the one the stack already has.
 - **The mailer code is uploaded separately.** `infra/reports.yml` carries only a placeholder for
   it, because inline CloudFormation code is capped at 4 KB and the handler is easier to review as
   a file. `make aws-reports-mailer-code` zips `infra/lambda/report_mailer.py` and uploads it;
