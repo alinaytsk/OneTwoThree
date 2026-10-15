@@ -201,6 +201,12 @@ aws-backend-login: ## Log Docker in to ECR
 
 .PHONY: aws-backend-push
 aws-backend-push: aws-backend-login ## Build the Lambda image for linux/$(ARCH) and push it with tag $(TAG)
+	@# Building for an architecture the daemon cannot emulate fails deep inside the build with
+	@# "exec /bin/sh: exec format error", which says nothing about the cause. Check up front.
+	@docker buildx ls | grep -q "linux/$(ARCH)" || { \
+	  echo "This Docker cannot build linux/$(ARCH): no emulation registered for it."; \
+	  echo "Register it once per boot:  docker run --privileged --rm tonistiigi/binfmt --install $(ARCH)"; \
+	  echo "Or build natively instead:  make $@ ARCH=$(if $(filter arm64,$(ARCH)),amd64,arm64)"; exit 1; }
 	docker buildx build --platform linux/$(ARCH) --provenance=false -f back/Dockerfile.lambda \
 	  -t $(ECR_URI):$(TAG) -t $(ECR_URI):latest --push back
 
