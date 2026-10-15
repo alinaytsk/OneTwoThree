@@ -80,6 +80,19 @@ backend_output  = $(call stack_output,$(BACKEND_STACK),$(1))
 frontend_output = $(call stack_output,$(FRONTEND_STACK),$(1))
 cognito_output  = $(call stack_output,$(COGNITO_STACK),$(1))
 reports_output  = $(call stack_output,$(REPORTS_STACK),$(1))
+# The report builder runs the backend image, so it has to name an image that is actually in ECR.
+# $(TAG) is derived from the working tree, so it names an image nobody ever pushed whenever the
+# tree is dirty - and Lambda then fails the stack with "Source image does not exist". Default to
+# the image the API Lambda is running instead, which is also the image the builder should match;
+# IMAGE_URI=... overrides it, e.g. after `make aws-backend-push`.
+BACKEND_IMAGE   = $(shell $(AWS_SHELL) lambda get-function --function-name $(BACKEND_FUNCTION) \
+                    --query Code.ImageUri --output text 2>/dev/null)
+REPORTS_IMAGE   = $(or $(IMAGE_URI),$(BACKEND_IMAGE))
+# Architecture has to agree with the image, or Lambda rejects the function. Take it from the same
+# place the image comes from; an explicit IMAGE_URI means the caller picks (ARCH=, default arm64).
+BACKEND_ARCH    = $(shell $(AWS_SHELL) lambda get-function-configuration \
+                    --function-name $(BACKEND_FUNCTION) --query "Architectures[0]" --output text 2>/dev/null)
+REPORTS_ARCH    = $(if $(IMAGE_URI),$(LAMBDA_ARCH),$(or $(BACKEND_ARCH),$(LAMBDA_ARCH)))
 API_URL          = $(call backend_output,ApiUrl)
 FRONTEND_ORIGINS = $(call frontend_output,SiteOrigins)
 CORS_ORIGINS_AWS = $(CORS_LOCAL)$(if $(FRONTEND_ORIGINS),$(COMMA)$(FRONTEND_ORIGINS))
@@ -386,9 +399,11 @@ aws-reports-deploy: aws-check aws-reports-stack aws-reports-mailer-code ## Deplo
 	@echo "Schedule: Monday 07:00 $(REPORT_TIMEZONE)  (one-off: make report-now WEEK=$$(date +%G-W%V))"
 
 .PHONY: aws-reports-stack
-aws-reports-stack: ## Create/update the reports stack with image tag $(TAG); KEEP_IMAGE=1 keeps the current image
+aws-reports-stack: ## Create/update the reports stack on the image the API runs; IMAGE_URI=... to override, KEEP_IMAGE=1 to keep the stack's
 	$(call clear_failed_stack,$(REPORTS_STACK))
-	@test -n "$(ECR_URI)" || { echo "ECR repository not found: run \`make aws-backend-ecr\` first"; exit 1; }
+	@test -n "$(KEEP_IMAGE)$(REPORTS_IMAGE)" || { \
+	  echo "No backend image found: deploy the backend first (\`make aws-backend-deploy\`),"; \
+	  echo "or name one explicitly:  make aws-reports-stack IMAGE_URI=<account>.dkr.ecr.<region>.amazonaws.com/$(PROJECT)-backend:<tag>"; exit 1; }
 	@test -n "$(MAIL_FROM)" -a -n "$(MAIL_TO)" || { echo "Set MAIL_FROM and MAIL_TO in .env (the sender must be verified in SES)"; exit 1; }
 	@# The reports stack reads the network from the backend stack. The route table and these
 	@# outputs were added for this lab, so an older backend stack has to be updated once.
@@ -397,8 +412,8 @@ aws-reports-stack: ## Create/update the reports stack with image tag $(TAG); KEE
 	  echo "Update it first:  make aws-backend-stack KEEP_IMAGE=1"; exit 1; }
 	aws cloudformation deploy --stack-name $(REPORTS_STACK) --template-file infra/reports.yml \
 	  --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset --tags $(STACK_TAGS) \
-	  --parameter-overrides ProjectName=$(PROJECT) $(if $(KEEP_IMAGE),,ImageUri=$(ECR_URI):$(TAG)) \
-	    Architecture=$(LAMBDA_ARCH) \
+	  --parameter-overrides ProjectName=$(PROJECT) $(if $(KEEP_IMAGE),,ImageUri=$(REPORTS_IMAGE)) \
+	    Architecture=$(REPORTS_ARCH) \
 	    VpcId=$(call backend_output,VpcId) \
 	    "SubnetIds=$(call backend_output,PrivateSubnetIds)" \
 	    SecurityGroupId=$(call backend_output,BackendSecurityGroupId) \

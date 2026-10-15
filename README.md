@@ -270,8 +270,14 @@ make aws-reports-get WEEK=2026-W40     # print a built report
 make aws-reports-destroy               # empty the bucket and delete the stack
 ```
 
-Two things are worth knowing about this deploy:
+Three things are worth knowing about this deploy:
 
+- **The builder runs the image the API is already running.** `aws-reports-stack` reads it from
+  the deployed backend Lambda rather than from `$(TAG)`, because `TAG` is derived from the working
+  tree: with uncommitted changes it names an image nobody pushed, and Lambda then fails the stack
+  with *Source image does not exist*. The architecture is read from the same place, so it cannot
+  disagree with the image. To use a freshly built image, run `make aws-backend-push` and pass
+  `IMAGE_URI=<uri>`.
 - **The mailer code is uploaded separately.** `infra/reports.yml` carries only a placeholder for
   it, because inline CloudFormation code is capped at 4 KB and the handler is easier to review as
   a file. `make aws-reports-mailer-code` zips `infra/lambda/report_mailer.py` and uploads it;
