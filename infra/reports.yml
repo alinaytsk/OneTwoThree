@@ -249,6 +249,14 @@ Resources:
               - Effect: Allow
                 Action: [s3:PutObject, s3:GetObject]
                 Resource: !Sub arn:${AWS::Partition}:s3:::${ProjectName}-reports-${AWS::AccountId}/reports/*
+              # Without ListBucket, S3 answers HeadObject on a key that does not exist with 403
+              # rather than 404 - it will not reveal whether an object exists to a caller that
+              # cannot list the bucket. The rerun check reads that 404, so the builder needs this
+              # to tell "no report yet" from a real permission problem. Bucket ARN, not /*:
+              # ListBucket is a bucket-level action.
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub arn:${AWS::Partition}:s3:::${ProjectName}-reports-${AWS::AccountId}
         - PolicyName: consume-report-requests
           PolicyDocument:
             Version: "2012-10-17"
