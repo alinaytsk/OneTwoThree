@@ -38,11 +38,11 @@ are in [§7](#7-why-not-opus-55-measured).
 40 files: the parser and its Lambda, `infra/ai.yml`, migration `0004`, the agenda endpoint, the
 frontend screen, the ADR, the test inputs and their results.
 
-## 2. What the screencast shows (32 s)
+## 2. What the screencast shows
 
 Recorded from the deployed site (`https://dm3js9endd52u.cloudfront.net`), signed in as a normal
-user. The timings are approximate; the order is the point — the model fills the form in, the
-user overrules it, and only then is anything saved.
+user. The order is the point — the model fills the form in, the user overrules one of its
+answers, and only then is anything saved.
 
 The pasted text is 188 characters of the kind of note this feature exists for — a weekday, a
 duration, three numbered points with two owners, and one task with a deadline:
@@ -51,14 +51,14 @@ duration, three numbered points with two owners, and one task with a deadline:
 > клієнтів — Taras 3) що робимо з річною знижкою. Taras до п'ятниці збирає порівняння з
 > конкурентами.
 
-| ≈ Time | On screen |
+| Step | On screen |
 |---|---|
-| 0:00–0:05 | A meeting is open, with a call link and `Room 204`. The agenda below it is empty; above it the dashed **Paste an agenda** box and its `0 / 10 000` counter. |
-| 0:05–0:08 | The note is pasted — the counter reads `188 / 10 000` — and **Parse** is pressed. |
-| 0:08–0:17 | The progress line "Reading the text… this takes a few seconds" with **Cancel** beside it, for about nine seconds. |
-| 0:17–0:24 | The form fills in: title "пошук новиг інвесторів", 23 October 2026, 15:00–16:00, three agenda items ("нові тарифи Pro" / Олена / 15 хв, "фідбек від клієнтів" / Taras, "що робимо з річною знижкою" with nobody against it), and one action item for Taras dated 24 October. **Thirteen fields carry a grey `suggested` badge** — and only thirteen: where the note says nothing, the field stays empty and unbadged rather than guessed. |
-| 0:24–0:28 | A field is corrected by hand: **Place** becomes `6767`. |
-| 0:28–0:32 | **Save changes** → the toast "Meeting updated". |
+| 1 | A meeting is open, with a call link and `Room 204`. The agenda below it is empty; above it the dashed **Paste an agenda** box and its `0 / 10 000` counter. |
+| 2 | The note is pasted — the counter reads `188 / 10 000` — and **Parse** is pressed. |
+| 3 | The progress line "Reading the text… this takes a few seconds" with **Cancel** beside it, for about nine seconds. |
+| 4 | The form fills in: title "пошук новиг інвесторів", 23 October 2026, 15:00–16:00, three agenda items ("нові тарифи Pro" / Олена / 15 хв, "фідбек від клієнтів" / Taras, "що робимо з річною знижкою" with nobody against it), and one action item for Taras dated 24 October. **Thirteen fields carry a grey `suggested` badge** — and only thirteen: where the note says nothing, the field stays empty and unbadged rather than guessed. |
+| 5 | The owner of the first agenda item is corrected: **"Олена" → "Олена Коваленко"**. The `suggested` badge under that one field disappears as soon as the field is edited; the other twelve stay. That is the whole claim of the design in one gesture — the model's answer is a suggestion until a person touches it, and the badge is how the form says which fields nobody has checked yet. |
+| 6 | **Save changes** → the toast "Meeting updated". The agenda goes to `PUT /api/meetings/{id}/agenda` on the API, carrying both what was kept and, as `ai_suggestion`, what the model had proposed — the parser's own URL is never asked to save anything (§3 shows it answering 405 to a write). |
 
 Two things the recording happens to show that are worth naming at the defence, because both are
 in [§6](#6-answers--step-5) as measured defects rather than as surprises:
@@ -71,14 +71,7 @@ in [§6](#6-answers--step-5) as measured defects rather than as surprises:
   not a one-off.
 - **The badge is the safety net.** That wrong date sits in a field marked `suggested`, which is
   exactly the design claim: a model-filled value is visible as not-yet-checked until a person
-  looks at it.
-
-What the recording does **not** show: a `suggested` badge being cleared. `Place` is not a field
-the parser fills — the model proposes a title, a start, a duration, agenda items and action
-items — so editing it corrects the form without demonstrating that the badge disappears on first
-edit. That behaviour is covered by a frontend test instead ("drops the suggested mark on a field
-as soon as the user edits it", `front/src/test/PasteAgenda.test.tsx`), which asserts the badge
-count falls from eleven to ten when one owner is retyped.
+  looks at it — the same mechanism the corrected owner demonstrates in step 5.
 
 ## 3. The deployed shape
 
@@ -190,7 +183,7 @@ wherever the text was silent. So this is not a missing rule: the same prompt res
 only `TODAY is 2026-10-17` and no weekday.
 
 The screencast is a sixth, unplanned instance of the same defect, which is why it is described
-rather than hidden in [§2](#2-what-the-screencast-shows-32-s): its note begins "Чт 15:00" and the
+rather than hidden in [§2](#2-what-the-screencast-shows): its note begins "Чт 15:00" and the
 form fills in **23 October, a Friday**, with the deadline "до п'ятниці" landing on the 24th.
 Three different phrasings — "next Tuesday", "Wednesday", "Чт" — each resolved one day late,
 while the clock times were right every time.
@@ -384,9 +377,10 @@ same two commands.
   and minutes, an owner that is not stated, two action items, one relative weekday and two
   relative deadlines. Replacing `text` in `docs/agenda-tests/inputs.json` and re-running
   `make parse-table` regenerates the table.
-- **What was verified how.** The screencast is a real recording of the deployed site. Away from
-  the camera, the browser path is covered by 11 frontend tests (paste → parse → marks → one
-  field corrected → the `PUT` body that Save sends, plus every error branch and a real
+- **What was verified how.** The screencast is a real recording of the deployed site, and it
+  shows the path a user takes: paste, parse, correct one field the model filled, save. What a
+  single take cannot show is every branch, so the rest is covered by 11 frontend tests (the
+  badge clearing on first edit, the exact `PUT` body Save sends, each error message, and a real
   `AbortController` cancellation), and the deployed path by the end-to-end check in §3, which
   drives the live function URL and the live API over HTTP rather than through the UI.
 - **Two defects of mine, found by measuring and fixed before the final run.** A parse that ended
