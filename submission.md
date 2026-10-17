@@ -38,11 +38,12 @@ are in [§7](#7-why-not-opus-55-measured).
 40 files: the parser and its Lambda, `infra/ai.yml`, migration `0004`, the agenda endpoint, the
 frontend screen, the ADR, the test inputs and their results.
 
-## 2. What the screencast shows
+## 2. What the screencast shows (32 s)
 
 Recorded from the deployed site (`https://dm3js9endd52u.cloudfront.net`), signed in as a normal
-user. The order is the point — the model fills the form in, the user overrules one of its
-answers, and only then is anything saved.
+user: 32 seconds, of which about nine are spent waiting for the model. The order is the point —
+the model fills the form in, the user overrules one of its answers, and only then is anything
+saved.
 
 The pasted text is 188 characters of the kind of note this feature exists for — a weekday, a
 duration, three numbered points with two owners, and one task with a deadline:
@@ -183,7 +184,7 @@ wherever the text was silent. So this is not a missing rule: the same prompt res
 only `TODAY is 2026-10-17` and no weekday.
 
 The screencast is a sixth, unplanned instance of the same defect, which is why it is described
-rather than hidden in [§2](#2-what-the-screencast-shows): its note begins "Чт 15:00" and the
+rather than hidden in [§2](#2-what-the-screencast-shows-32-s): its note begins "Чт 15:00" and the
 form fills in **23 October, a Friday**, with the deadline "до п'ятниці" landing on the 24th.
 Three different phrasings — "next Tuesday", "Wednesday", "Чт" — each resolved one day late,
 while the clock times were right every time.
