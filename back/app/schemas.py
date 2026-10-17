@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import (
@@ -87,6 +87,65 @@ class MeetingCreate(BaseModel):
         return self
 
 
+class AgendaItem(BaseModel):
+    """One point on the agenda, as the user saved it."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    topic: str = Field(min_length=1, max_length=300)
+    owner: str | None = Field(default=None, max_length=120)
+    minutes: int | None = Field(default=None, ge=1, le=600)
+
+    @field_validator("owner", mode="before")
+    @classmethod
+    def blank_to_none(cls, value: object) -> object:
+        return _blank_to_none(value)
+
+
+class AgendaActionItem(BaseModel):
+    """Something to do after the meeting."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    task: str = Field(min_length=1, max_length=500)
+    owner: str | None = Field(default=None, max_length=120)
+    due: date | None = None
+
+    @field_validator("owner", "due", mode="before")
+    @classmethod
+    def blank_to_none(cls, value: object) -> object:
+        return _blank_to_none(value)
+
+
+class AgendaBody(BaseModel):
+    """The agenda itself, as stored in the `agenda` JSONB column."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    items: list[AgendaItem] = Field(default_factory=list, max_length=50)
+    action_items: list[AgendaActionItem] = Field(default_factory=list, max_length=50)
+
+
+class AgendaSave(AgendaBody):
+    """What the browser sends to PUT /meetings/{id}/agenda.
+
+    `ai_suggestion` is what the parser proposed, exactly as it came back, together with the model
+    and prompt version that produced it. The user may have edited every field since; that is the
+    point of keeping both. Sent only when a parse was involved - saving a hand-written agenda
+    leaves the earlier suggestion and its provenance untouched.
+    """
+
+    ai_suggestion: dict | None = None
+    model: str | None = Field(default=None, max_length=100)
+    prompt_version: str | None = Field(default=None, max_length=50)
+
+    @model_validator(mode="after")
+    def suggestion_names_its_model(self) -> "AgendaSave":
+        if self.ai_suggestion is not None and not (self.model and self.prompt_version):
+            raise ValueError("An ai_suggestion must come with its model and prompt_version")
+        return self
+
+
 class MeetingRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -99,4 +158,8 @@ class MeetingRead(BaseModel):
     ends_at: datetime
     owner_id: UUID | None
     participants: list[ParticipantRead]
+    agenda: AgendaBody | None
+    ai_suggestion: dict | None
+    ai_model: str | None
+    ai_prompt_version: str | None
     created_at: datetime

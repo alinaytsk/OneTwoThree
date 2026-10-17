@@ -9,3 +9,4 @@ mangum>=0.19
 pyjwt[crypto]>=2.9
 boto3>=1.35
 tzdata>=2024.1
+anthropic[bedrock]>=0.75

@@ -17,7 +17,10 @@ engine = create_engine(TEST_DATABASE_URL)
 TestingSession = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
-@pytest.fixture(scope="session", autouse=True)
+# Requested by the `client` fixture rather than autouse: the tests that mock the model away
+# (tests/test_agenda_parser.py, tests/test_agenda_lambda.py) need no database at all, and should
+# not need one running to pass.
+@pytest.fixture(scope="session")
 def schema() -> Iterator[None]:
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
@@ -26,7 +29,7 @@ def schema() -> Iterator[None]:
 
 
 @pytest.fixture
-def client() -> Iterator[TestClient]:
+def client(schema: None) -> Iterator[TestClient]:
     def override_get_db() -> Iterator[Session]:
         with TestingSession() as session:
             yield session

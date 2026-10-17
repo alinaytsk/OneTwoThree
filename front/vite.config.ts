@@ -20,5 +20,8 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
+    // The agenda parser's function URL. Set here because the module reads it once at import
+    // time, which is before a test could stub it.
+    env: { VITE_PARSER_URL: "https://parser.test" },
   },
 })

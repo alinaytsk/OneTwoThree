@@ -1,0 +1,313 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Meetings App - the "Paste an agenda" parser. One Lambda running the backend image on a
+  different command, with a public function URL the browser calls directly, and Claude on
+  Bedrock behind it.
+
+  The function has no VpcConfig on purpose. It needs Bedrock and the Cognito JWKS, both of
+  which are public endpoints, and it needs no database: parsing is a pure function of the
+  pasted text. Keeping it outside the VPC means the VPC needs no $7.30/month interface
+  endpoint for Bedrock, and - the part that matters more - the function the browser can
+  reach with 10 000 characters of untrusted text has no route to the meetings database.
+  Saving the result goes through the API in the VPC (PUT /api/meetings/{id}/agenda).
+
+  The image URI comes from the backend stack; the Makefile passes it.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: meetings
+    Description: Name prefix for all resources. Must match the backend stack.
+
+  ImageUri:
+    Type: String
+    Description: >-
+      Backend image URI including tag - the same image the API runs, started on a different
+      command. It has to contain app/ai and the anthropic[bedrock] dependency.
+  Architecture:
+    Type: String
+    Default: arm64
+    AllowedValues: [arm64, x86_64]
+    Description: Must match the platform the image was built for.
+
+  # --- Who may call it, and who it trusts ---
+  CorsOrigins:
+    Type: CommaDelimitedList
+    Description: >-
+      Browser origins allowed on the function URL (the frontend's, plus local development).
+      The URL is AuthType NONE, so this is not a security boundary - the handler verifies a
+      Cognito ID token itself - it only keeps other sites' pages from reading the answer.
+  CognitoUserPoolId:
+    Type: String
+    Description: Pool whose ID tokens the parser accepts (Cognito stack output UserPoolId).
+  CognitoClientId:
+    Type: String
+    Description: App client the tokens are issued for (Cognito stack output UserPoolClientId).
+
+  # --- Model ---
+  ParserModel:
+    Type: String
+    Default: anthropic.claude-opus-5-5
+    Description: >-
+      Bedrock model id. A setting, so a cheaper model needs no code change. Base model id
+      (anthropic.claude-opus-5-5) for ParserBackend=mantle; cross-region inference profile id
+      (us.anthropic.claude-opus-5-5) for ParserBackend=invoke_model.
+  ParserBackend:
+    Type: String
+    Default: mantle
+    AllowedValues: [mantle, invoke_model]
+    Description: >-
+      Which Bedrock endpoint the model is called through. `mantle` is the Messages API on
+      Bedrock, which this feature is built on and which takes base model ids. `invoke_model` is
+      the older bedrock-runtime path, the only one that accepts cross-region inference profile
+      ids (the `us.` ones) and model versions before the 5 family. It changes the IAM the
+      function gets, which is why it is a stack parameter and not only an environment variable.
+  ParserEffort:
+    Type: String
+    Default: low
+    AllowedValues: ["", low, medium, high, xhigh, max]
+    Description: >-
+      Extraction needs no deep reasoning; low keeps latency and output tokens down. Empty sends
+      no output_config at all, which is required for models before the 5 family: they answer
+      400 "output_config.effort: Extra inputs are not permitted".
+  ParserPriceInPerMTok:
+    Type: String
+    Default: "4"
+    Description: USD per million input tokens, used for the cost in the log line.
+  ParserPriceOutPerMTok:
+    Type: String
+    Default: "20"
+    Description: USD per million output tokens.
+  ParserPriceSource:
+    Type: String
+    Default: bedrock-rate-card
+    AllowedValues: [bedrock-rate-card, public-list]
+    Description: >-
+      Where the two prices above came from, logged with every parse so a computed cost is never
+      read as a billed one. bedrock-rate-card = read from this account's Marketplace offer for
+      the model; public-list = the published list price, not confirmed against the account.
+  ParserMaxChars:
+    Type: Number
+    Default: 10000
+    Description: Longer pastes are rejected with 413 before the model is called.
+  ParserTimezone:
+    Type: String
+    Default: Europe/Kyiv
+    Description: Timezone relative dates ("next Tuesday") are resolved in.
+
+  # --- Operations ---
+  Timeout:
+    Type: Number
+    Default: 30
+    MinValue: 10
+    MaxValue: 300
+    Description: Seconds. A parse takes 2-8 s; 30 leaves room for the one retry.
+  MemorySize:
+    Type: Number
+    Default: 1024
+    Description: >-
+      MB. The work itself is one HTTPS call, so this buys cold-start speed, not throughput:
+      Lambda scales vCPU with memory, and at 512 MB the import of anthropic and its AWS signing
+      stack took 9 999 ms, which is Lambda's 10 s init limit - one measured request was
+      re-initialised and took 22 s end to end. The extra memory costs about $0.00003 per parse
+      against $0.009 of model tokens.
+  LogRetentionDays:
+    Type: Number
+    Default: 7
+  BudgetLimitUsd:
+    Type: Number
+    Default: 5
+    Description: Monthly spend on this account above which an email is sent.
+  BudgetEmail:
+    Type: String
+    Description: Where budget alerts go (the address already verified in SES for Lab 5).
+
+Conditions:
+  # An inference profile is only in play on the older path; the Mantle endpoint has its own
+  # single action and takes no profile.
+  UsesInferenceProfile: !Equals [!Ref ParserBackend, invoke_model]
+
+Resources:
+  # =====================================================================
+  # Parser Lambda: outside the VPC, no database, Bedrock only
+  # =====================================================================
+  ParserLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${ProjectName}-agenda-parser
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - Key: PROJECT_NAME
+          Value: !Ref ProjectName
+
+  ParserRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # Logs only - no VPC access execution role, this function is not in the VPC.
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: invoke-claude-on-bedrock
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # The Messages API on Bedrock ("Mantle") is one action, and it does not take a
+              # model ARN as its resource - the model is named in the request body - so "*" is
+              # the only resource this can be written against. The blast radius is bounded by
+              # the action itself: inference, nothing else. No model management, no training
+              # data, no other AWS service.
+              - Effect: Allow
+                Action: bedrock-mantle:CreateInference
+                Resource: "*"
+        # Only when ParserBackend=invoke_model. A cross-region inference profile needs BOTH
+        # halves, which is the part that is easy to get wrong: InvokeModel on the profile itself,
+        # and InvokeModel on the foundation models the profile routes to. With only the first,
+        # the call is refused for the model ARN; with only the second, for the profile.
+        # The condition is what keeps the second statement tight - the role can invoke those
+        # models only through this one profile, not directly.
+        - !If
+          - UsesInferenceProfile
+          - PolicyName: invoke-claude-through-an-inference-profile
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action: [bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream, bedrock:GetInferenceProfile]
+                  Resource: !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${ParserModel}
+                - Effect: Allow
+                  Action: [bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream]
+                  # Every region the US profile can route to; the condition pins it to this profile.
+                  Resource: !Sub arn:${AWS::Partition}:bedrock:*::foundation-model/*
+                  Condition:
+                    StringEquals:
+                      bedrock:InferenceProfileArn: !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${ParserModel}
+          - !Ref AWS::NoValue
+      Tags:
+        - Key: PROJECT_NAME
+          Value: !Ref ProjectName
+
+  ParserFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${ProjectName}-agenda-parser
+      PackageType: Image
+      Code:
+        ImageUri: !Ref ImageUri
+      ImageConfig:
+        # Same image as the API and the report builder, different entry point.
+        Command: [app.ai.agenda_lambda.handler]
+      Architectures: [!Ref Architecture]
+      MemorySize: !Ref MemorySize
+      Timeout: !Ref Timeout
+      Role: !GetAtt ParserRole.Arn
+      LoggingConfig:
+        LogGroup: !Ref ParserLogGroup
+      # No VpcConfig, and no DB_* in the environment: see the stack description.
+      Environment:
+        Variables:
+          PARSER_MODEL: !Ref ParserModel
+          PARSER_BACKEND: !Ref ParserBackend
+          PARSER_EFFORT: !Ref ParserEffort
+          PARSER_MAX_CHARS: !Ref ParserMaxChars
+          PARSER_TIMEZONE: !Ref ParserTimezone
+          PARSER_PRICE_IN_PER_MTOK: !Ref ParserPriceInPerMTok
+          PARSER_PRICE_OUT_PER_MTOK: !Ref ParserPriceOutPerMTok
+          PARSER_PRICE_SOURCE: !Ref ParserPriceSource
+          BEDROCK_REGION: !Ref AWS::Region
+          COGNITO_REGION: !Ref AWS::Region
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          COGNITO_CLIENT_ID: !Ref CognitoClientId
+          # COGNITO_JWKS is deliberately absent: outside the VPC the function fetches the pool's
+          # keys itself on the first call, and keeps them for the life of the execution
+          # environment. The API has to be handed them, because it has no route out.
+      Tags:
+        - Key: PROJECT_NAME
+          Value: !Ref ProjectName
+
+  # Public HTTPS endpoint the browser posts the pasted text to. AuthType NONE because the
+  # caller holds a Cognito ID token, not SigV4 credentials - the handler checks that token on
+  # every request, exactly as the API does.
+  ParserFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !Ref ParserFunction
+      AuthType: NONE
+      Cors:
+        AllowOrigins: !Ref CorsOrigins
+        AllowMethods: [POST]
+        AllowHeaders: [content-type, authorization]
+        MaxAge: 3600
+
+  # A public function URL needs both permissions, like the backend's.
+  ParserFunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ParserFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: "*"
+      FunctionUrlAuthType: NONE
+
+  ParserFunctionInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ParserFunction
+      Action: lambda:InvokeFunction
+      Principal: "*"
+      InvokedViaFunctionUrl: true
+
+  # =====================================================================
+  # Cost guard
+  # =====================================================================
+  # Budgets are a global (us-east-1) service and are account-wide: this watches everything the
+  # account spends, not only Bedrock, which is the point - a runaway parse loop shows up here
+  # whatever it is billed as. Budgets cannot be tagged.
+  MonthlyBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: !Sub ${ProjectName}-monthly
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: !Ref BudgetLimitUsd
+          Unit: USD
+      NotificationsWithSubscribers:
+        # At 80% of the budget, while there is still time to react.
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+        # And on the forecast, which is what catches a leak on day three of the month.
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+
+Outputs:
+  ParserUrl:
+    Description: Function URL the frontend is built with (VITE_PARSER_URL).
+    Value: !GetAtt ParserFunctionUrl.FunctionUrl
+  ParserFunctionName:
+    Value: !Ref ParserFunction
+  ParserLogGroupName:
+    Value: !Ref ParserLogGroup
+  ParserModel:
+    Value: !Ref ParserModel
+  ParserBackend:
+    Value: !Ref ParserBackend
+  BudgetName:
+    Value: !Sub ${ProjectName}-monthly

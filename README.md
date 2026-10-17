@@ -29,12 +29,16 @@ back/             # FastAPI + SQLAlchemy 2 + Alembic
   app/
     main.py       # app, CORS, error handlers
     lambda_handler.py # AWS Lambda entry point (Mangum) + migrate action
-    models.py     # User, Meeting (owner_id → users), Participant, meeting_participants
-    auth.py       # Cognito ID-token verification, current user
+    models.py     # User, Meeting (owner_id → users, agenda + ai_suggestion JSONB), Participant,
+                  # meeting_participants
+    auth_tokens.py # Cognito ID-token checking (no FastAPI, no DB: the parser reuses it)
+    auth.py       # the current user as a FastAPI dependency
     schemas.py    # Pydantic request/response models
     services/     # business logic
-    routers/      # /api/meetings, /api/participants, /api/health
+    routers/      # /api/meetings (+ /agenda), /api/participants, /api/health
     reports/      # weekly report: weekly.py (CSV from the DB), lambda_handler.py (builder Lambda)
+    ai/           # agenda parser: agenda.py (the pure function), agenda_lambda.py (its Lambda),
+                  # hello.py (`make llm-hello`)
   alembic/        # migrations (run on container start; on AWS via `make aws-backend-migrate`)
   Dockerfile.lambda # AWS Lambda image
   tests/
@@ -42,15 +46,19 @@ front/            # Vite + React + TypeScript + Tailwind + shadcn/ui
   src/
     pages/        # LoginPage (/), SignUpPage (/signup), ConfirmPage (/confirm), AuthCallbackPage
                   # (/auth/callback, Google), HomePage (/home, the calendar; needs sign-in)
-    components/   # MeetingsCalendar, MeetingFormDialog, DeleteMeetingDialog, ParticipantsMultiSelect
+    components/   # MeetingsCalendar, MeetingFormDialog, DeleteMeetingDialog, ParticipantsMultiSelect,
+                  # PasteAgendaPanel (paste + Parse + Cancel), AgendaFields (the agenda form)
     components/ui # generated shadcn components
     hooks/        # TanStack Query hooks
     lib/calendar.ts # date helpers and the overlap layout for the calendar
     lib/auth.ts   # Cognito sign-in/up, session and token refresh, Google (Hosted UI + PKCE)
     lib/api.ts    # typed fetch wrapper (VITE_API_URL = backend origin, empty = same origin)
+    lib/parser.ts # the agenda parser's own URL (VITE_PARSER_URL) and its error codes
+    lib/agenda.ts # the agenda draft: values plus which fields are still the model's suggestion
   nginx.conf      # serves the SPA, proxies /api to backend
 infra/            # CloudFormation: cognito, auth, backend-ecr, backend (Lambda + Aurora), frontend (S3 + CloudFront),
-                  # reports.yml (S3 + SQS + Scheduler + 2 Lambdas + SES)
+                  # reports.yml (S3 + SQS + Scheduler + 2 Lambdas + SES),
+                  # ai.yml (agenda parser Lambda outside the VPC + its URL + Budgets alarm)
   lambda/         # report_mailer.py — the mailer Lambda, deployed as a zip, not in the backend image
 ```
 
@@ -65,6 +73,7 @@ infra/            # CloudFormation: cognito, auth, backend-ecr, backend (Lambda 
 | GET | `/api/meetings/{id}` | One meeting |
 | POST | `/api/meetings` | Create a meeting |
 | PUT | `/api/meetings/{id}` | Replace a meeting (same body as POST) |
+| PUT | `/api/meetings/{id}/agenda` | Save the agenda: `items`, `action_items`, and for a parsed one `ai_suggestion` + `model` + `prompt_version` |
 | DELETE | `/api/meetings/{id}` | Delete a meeting |
 | GET | `/api/participants?q=` | List/search participants |
 | POST | `/api/participants` | Create a participant (409 on duplicate email) |
@@ -74,6 +83,8 @@ Everything except `/api/health` needs `Authorization: Bearer <Cognito ID token>`
 personal: each belongs to the user who created it (`owner_id`), and other users get 404 for it. The
 participant directory is shared. All IDs are UUIDs. A meeting needs a title, `starts_at` and `ends_at` (ISO 8601 with a timezone, end after start)
 and at least one of `call_link` or `place`.
+
+Parsing pasted text is **not** in this table: it is a separate function URL with its own deployment, outside the VPC, which stores nothing — see [Paste an agenda](#paste-an-agenda-claude-on-bedrock).
 
 ## Sign-in (Cognito)
 
@@ -161,7 +172,24 @@ flowchart LR
     URL --> L[Lambda<br/>FastAPI via Mangum<br/>private subnets]
     L -->|:5432| DB[(Aurora Serverless v2<br/>PostgreSQL, private subnets)]
     L -. image .-> ECR[ECR]
+
+    B -->|parse: pasted text + ID token| PURL[Lambda function URL<br/>CORS on the site's origin]
+    PURL --> P[Agenda parser Lambda<br/>no VPC, no database]
+    P -->|Messages API| BR[Claude on Bedrock<br/>anthropic.claude-opus-5-5]
+    P -. same image .-> ECR
+
+    subgraph VPC[VPC, no NAT gateway]
+        L
+        DB
+    end
 ```
+
+Two paths, on purpose. **Parse** goes browser -> parser function -> Bedrock and comes back as
+JSON the form fills itself in from; nothing is stored. **Save** goes browser -> API -> Aurora,
+the way every other write does. The parser is outside the VPC because it needs Bedrock and the
+Cognito JWKS and needs no database - so the component that reads pasted, untrusted text has no
+route to the meetings data. See
+[docs/adr/0006-llm-agenda-parsing.md](docs/adr/0006-llm-agenda-parsing.md).
 
 1. Put credentials into `.env` (an IAM user or role allowed to use CloudFormation, EC2/VPC, Lambda, ECR, RDS, Secrets Manager, S3, CloudFront, WAF, Pricing Plan Manager, ACM, Route 53, IAM and CloudWatch Logs):
 
@@ -209,6 +237,77 @@ make aws-frontend-https-check # 3. curl https://onetwothree.dobosevych.com/
 **Cost.** There is no load balancer, NAT gateway or public IPv4 address. Lambda and function URLs fit in the always-free tier for a small app. CloudFront runs on the flat-rate Free plan, which costs $0 with no overage charges and also covers its WAF web ACL (a per-IP rate limit). Requests that WAF blocks don't count toward the plan's allowance. Aurora Serverless v2 has no free tier. With `DbMinCapacity=0` it pauses after 5 idle minutes, and then you pay only for storage (about $0.10/GB-month). While active it costs about $0.12 per ACU-hour. The first request after a pause waits about 15 seconds while Aurora resumes. The DB credentials secret costs $0.40/month. Run `make aws-destroy` when you are done. It keeps a final Aurora snapshot.
 
 On AWS the backend reads `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` and `DB_PASSWORD` instead of `DATABASE_URL`. The password is generated in Secrets Manager and resolved into the function's environment at deploy time, so the VPC needs no internet access. `DB_NULL_POOL=true` closes connections after each request, because idle connections from warm Lambdas would stop Aurora from pausing. Migrations do not run on cold start. `make aws-backend-migrate` runs them, and every `aws-backend-deploy` calls it.
+
+## Paste an agenda (Claude on Bedrock)
+
+On the meeting dialog, next to the agenda form, is a box to paste an email or notes into and a
+**Parse** button. Four seconds later the form is filled in, every field the model filled carries
+a **suggested** mark until you edit it, and **Save** stores the agenda through the API - together
+with what the model proposed, so the two can be compared later.
+
+```
+Browser  --- POST pasted text + Cognito ID token --->  parser function URL (AuthType NONE)
+                                                        |
+                                            verifies the ID token itself (JWKS, Lab 4 code)
+                                            rejects over 10 000 characters with 413
+                                                        |
+                                                        v
+                                        Claude on Bedrock, tool `record_agenda`
+                                        validated with Pydantic, one retry on failure
+                                                        |
+Browser  <--- agenda JSON + model + prompt_version + usage ---+
+   |
+   +--- PUT /api/meetings/{id}/agenda --->  API (in the VPC)  --->  Aurora
+        agenda + ai_suggestion + model + prompt_version
+```
+
+The parser Lambda runs the **same backend image** as the API on a different command
+(`app.ai.agenda_lambda.handler`), with **no `VpcConfig`**, no database credentials, and one IAM
+action: `bedrock-mantle:CreateInference`. It writes nothing anywhere - the model fills in a
+form, a person checks it, and the person saves it.
+
+| Target | What it does |
+| --- | --- |
+| `make llm-hello` | One Bedrock call through the Anthropic Messages API: answer, `stop_reason`, usage. Run this first - it is where missing model access shows up. |
+| `make parse TEXT="..."` | Runs `parse_agenda` locally and prints the JSON and the usage. |
+| `make aws-ai-deploy` | Builds and pushes the image, then deploys `infra/ai.yml` (parser, its URL, the budget). |
+| `make parse-live TEXT="..."` | Signs in as `TEST_EMAIL` and parses through the **deployed** Lambda: real tokens, latency and cost. |
+| `make aws-ai-logs` | Tails the parser's log group - one JSON line per parse. |
+| `make aws-ai-outputs` | Parser URL, function name, model, budget. |
+| `make aws-ai-destroy` | Deletes the stack and its budget alarm. |
+
+**Model access.** Anthropic models on Bedrock need enabling once per account: Bedrock ->
+us-east-1 -> Model catalog -> the model -> request access (a use-case form, then the Marketplace
+terms). Until that is done every call answers
+`403 permission_error: ... is not available for this account`, which is exactly what
+`make llm-hello` prints.
+
+**Settings** (stack parameters, and `PARSER_*` in the environment - nothing is hard-coded):
+
+| Setting | Default | Why it is a setting |
+| --- | --- | --- |
+| `PARSER_MODEL` | `anthropic.claude-opus-5-5` | `anthropic.claude-haiku-5-5` is ~40x cheaper per token; swapping it is a parameter, not a code change. |
+| `PARSER_EFFORT` | `low` | Extraction needs no deep reasoning; low keeps latency and output tokens down. |
+| `PARSER_MAX_CHARS` | `10000` | Rejected with 413 **before** the model is called. |
+| `PARSER_PRICE_IN_PER_MTOK` / `..._OUT_...` | `4` / `20` | The prices the logged `cost_usd` is computed from; they move with the model. |
+| `PARSER_TIMEZONE` | `Europe/Kyiv` | Where "next Tuesday after lunch" is resolved. |
+| `AI_BUDGET_USD` | `5` | AWS Budgets alarm, emailed to `MAIL_TO` at 80% actual and 100% forecast. |
+
+**Cost.** One parse is a few tenths of a cent, most of it the fixed system prompt and tool
+schema rather than the paste. Every parse logs its own `cost_usd`, so the monthly bill is a
+Logs Insights query rather than an estimate:
+
+```
+fields @timestamp, @message
+| filter @message like /agenda-parse/
+| parse @message '"cost_usd":*,' as cost
+| stats sum(cost), avg(latency_ms), count() by model, prompt_version
+```
+
+**Comparing prompt versions.** Every saved agenda keeps `ai_suggestion` (what the model
+proposed), `ai_model` and `ai_prompt_version` next to the agenda the user kept. Grouping the
+difference between the two by `ai_prompt_version` is how `agenda-v2` is shown to be better than
+`agenda-v1`, on real data, without replaying a single parse.
 
 ## Weekly meetings report (event driven)
 

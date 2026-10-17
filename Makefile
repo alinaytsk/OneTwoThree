@@ -59,6 +59,48 @@ BUILDER_TIMEOUT   ?= 120
 # Optional: creates the SES domain identity, whose DKIM records are published by hand.
 SES_DOMAIN        ?=
 
+# --- Agenda parser (`make llm-hello`, `make parse`, `make aws-ai-deploy`) ---
+AI_STACK          := $(PROJECT)-ai
+PARSER_FUNCTION   := $(PROJECT)-agenda-parser
+# Model id on Bedrock. Override to compare: `make parse PARSER_MODEL=anthropic.claude-haiku-5-5 TEXT=...`
+PARSER_MODEL      ?= anthropic.claude-opus-5-5
+# How that model is called: `mantle` (the Messages API on Bedrock, base model ids) or
+# `invoke_model` (the older bedrock-runtime path, the one that takes `us.`-prefixed
+# cross-region inference profile ids and pre-5 model versions).
+PARSER_BACKEND    ?= mantle
+# MB for the parser Lambda. Passed on every deploy, not left to the template default:
+# `aws cloudformation deploy` keeps an existing stack's parameter when it is not given
+# one, so a changed default alone would never reach a deployed stack. 1024 because at
+# 512 the cold start hit Lambda's 10 s init limit (see infra/ai.yml).
+PARSER_MEMORY     ?= 1024
+# Empty for a model before the 5 family: they reject output_config outright.
+PARSER_EFFORT     ?= low
+# Bedrock prices of $(PARSER_MODEL) in USD per million tokens; they go into the logged cost.
+# The defaults are Opus 5.5's, read from this account's own Marketplace rate card
+# (`aws bedrock list-foundation-model-agreement-offers --model-id anthropic.claude-opus-5-5`),
+# which is why PARSER_PRICE_SOURCE says bedrock-rate-card. Change all three together.
+PARSER_PRICE_IN   ?= 4
+PARSER_PRICE_OUT  ?= 20
+PARSER_PRICE_SOURCE ?= bedrock-rate-card
+# `make ... PROFILE=sonnet45` runs everything against Claude Sonnet 4.5 through the older
+# bedrock-runtime path - the one model this account can call while Opus 5.5 access is pending.
+# Its $3/$15 is the published list price, NOT a rate confirmed against this account (the model
+# has no Marketplace offer to read, and Cost Explorer only shows actuals a day later), hence
+# price_source=public-list in every line it produces.
+ifeq ($(PROFILE),sonnet45)
+PARSER_BACKEND      := invoke_model
+PARSER_MODEL        := us.anthropic.claude-sonnet-4-5-20250929-v1:0
+PARSER_EFFORT       :=
+PARSER_PRICE_IN     := 3
+PARSER_PRICE_OUT    := 15
+PARSER_PRICE_SOURCE := public-list
+endif
+# Monthly budget whose breach emails $(MAIL_TO) (AWS Budgets, in the AI stack).
+AI_BUDGET_USD     ?= 5
+# The five test pastes of `make parse-table`, and where their full answers are written.
+PARSE_INPUTS      ?= docs/agenda-tests/inputs.json
+PARSE_RESULTS     ?= docs/agenda-tests/results.json
+
 LAMBDA_ARCH  = $(if $(filter arm64,$(ARCH)),arm64,x86_64)
 HASH        := \#
 COMMA       := ,
@@ -80,6 +122,7 @@ backend_output  = $(call stack_output,$(BACKEND_STACK),$(1))
 frontend_output = $(call stack_output,$(FRONTEND_STACK),$(1))
 cognito_output  = $(call stack_output,$(COGNITO_STACK),$(1))
 reports_output  = $(call stack_output,$(REPORTS_STACK),$(1))
+ai_output       = $(call stack_output,$(AI_STACK),$(1))
 # The builder runs the backend image, so that image has to contain app/reports. Hence
 # aws-reports-deploy builds and pushes it, and deploys exactly the tag it just pushed.
 # Reusing whatever image the API happens to be running does not work: it can predate the feature,
@@ -88,6 +131,10 @@ reports_output  = $(call stack_output,$(REPORTS_STACK),$(1))
 # stack fails with "Source image does not exist" - which is why the push is a prerequisite and the
 # recipe checks ECR before deploying. (The API keeps its own image until aws-backend-stack runs.)
 REPORTS_IMAGE   = $(or $(IMAGE_URI),$(ECR_URI):$(TAG))
+# Same story as REPORTS_IMAGE: the parser runs the backend image, so the image it deploys has to
+# be one that already contains app/ai and the anthropic dependency.
+AI_IMAGE        = $(or $(IMAGE_URI),$(ECR_URI):$(TAG))
+PARSER_URL      = $(call ai_output,ParserUrl)
 API_URL          = $(call backend_output,ApiUrl)
 FRONTEND_ORIGINS = $(call frontend_output,SiteOrigins)
 CORS_ORIGINS_AWS = $(CORS_LOCAL)$(if $(FRONTEND_ORIGINS),$(COMMA)$(FRONTEND_ORIGINS))
@@ -287,6 +334,7 @@ aws-frontend-publish: ## Build the SPA with VITE_API_URL=<function URL>, upload 
 	echo "Building frontend with VITE_API_URL=$$api" && \
 	printf '%s\n' \
 	  "VITE_API_URL=$$api" \
+	  "VITE_PARSER_URL=$(PARSER_URL)" \
 	  "VITE_COGNITO_REGION=$(AWS_REGION)" \
 	  "VITE_COGNITO_USER_POOL_ID=$(COGNITO_POOL_ID)" \
 	  "VITE_COGNITO_CLIENT_ID=$(COGNITO_CLIENT)" \
@@ -495,6 +543,91 @@ aws-reports-destroy: aws-check ## Empty the reports bucket and delete the report
 	@bucket="$(call reports_output,ReportsBucketName)"; [ -z "$$bucket" ] || aws s3 rm "s3://$$bucket" --recursive --quiet
 	aws cloudformation delete-stack --stack-name $(REPORTS_STACK)
 	aws cloudformation wait stack-delete-complete --stack-name $(REPORTS_STACK)
+
+##@ AI agenda parser (Claude on Bedrock + a Lambda outside the VPC)
+
+# What `make llm-hello` / `make parse` put in the environment, so a local run and the deployed
+# Lambda read exactly the same settings (back/app/config.py).
+PARSER_ENV = PARSER_MODEL=$(PARSER_MODEL) PARSER_BACKEND=$(PARSER_BACKEND) PARSER_EFFORT=$(PARSER_EFFORT) BEDROCK_REGION=$(AWS_REGION) PARSER_TIMEZONE=$(REPORT_TIMEZONE) PARSER_PRICE_IN_PER_MTOK=$(PARSER_PRICE_IN) PARSER_PRICE_OUT_PER_MTOK=$(PARSER_PRICE_OUT) PARSER_PRICE_SOURCE=$(PARSER_PRICE_SOURCE)
+
+.PHONY: llm-hello
+llm-hello: ## One Bedrock call through the Anthropic Messages API: prints answer, stop_reason, usage
+	cd back && $(PARSER_ENV) uv run python -m app.ai.hello $(if $(PROMPT),"$(PROMPT)",)
+
+.PHONY: parse
+parse: ## Parse pasted text locally, without the Lambda: make parse TEXT="..."
+	@test -n "$(TEXT)" || { echo 'Usage: make parse TEXT="Sprint planning on Tuesday 15:00 ..."'; exit 1; }
+	cd back && $(PARSER_ENV) uv run python -m app.ai.agenda "$(TEXT)"
+
+.PHONY: aws-ai-deploy
+aws-ai-deploy: aws-check aws-backend-push aws-ai-stack ## Deploy the parser: build and push the image, then the stack
+	@echo
+	@echo "Parser URL: $(call ai_output,ParserUrl)"
+	@echo "Model:      $(call ai_output,ParserModel)"
+	@echo "Budget:     $(AI_BUDGET_USD) USD/month, alerts to $(MAIL_TO)"
+
+.PHONY: aws-ai-stack
+aws-ai-stack: ## Create/update the parser stack with image tag $(TAG) (must already be pushed); IMAGE_URI=... or KEEP_IMAGE=1 to override
+	$(call clear_failed_stack,$(AI_STACK))
+	@test -n "$(KEEP_IMAGE)$(IMAGE_URI)" || \
+	  aws ecr describe-images --repository-name $(PROJECT)-backend --image-ids imageTag=$(TAG) >/dev/null 2>&1 || { \
+	    echo "Image $(PROJECT)-backend:$(TAG) is not in ECR, so the stack would roll back."; \
+	    echo "Use 'make aws-ai-deploy' (it builds and pushes first), or pass IMAGE_URI=<uri> / KEEP_IMAGE=1."; \
+	    exit 1; }
+	@test -n "$(MAIL_TO)" || { echo "Set MAIL_TO in .env: the budget alert is emailed there"; exit 1; }
+	@test -n "$(COGNITO_POOL_ID)" || { echo "Cognito stack not found: run 'make aws-cognito-deploy' first"; exit 1; }
+	aws cloudformation deploy --stack-name $(AI_STACK) --template-file infra/ai.yml \
+	  --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset --tags $(STACK_TAGS) \
+	  --parameter-overrides ProjectName=$(PROJECT) $(if $(KEEP_IMAGE),,ImageUri=$(AI_IMAGE)) \
+	    Architecture=$(LAMBDA_ARCH) "CorsOrigins=$(CORS_ORIGINS_AWS)" \
+	    CognitoUserPoolId=$(COGNITO_POOL_ID) CognitoClientId=$(COGNITO_CLIENT) \
+	    ParserModel=$(PARSER_MODEL) ParserBackend=$(PARSER_BACKEND) ParserEffort=$(PARSER_EFFORT) \
+	    ParserPriceInPerMTok=$(PARSER_PRICE_IN) ParserPriceOutPerMTok=$(PARSER_PRICE_OUT) \
+	    ParserPriceSource=$(PARSER_PRICE_SOURCE) MemorySize=$(PARSER_MEMORY) \
+	    ParserTimezone=$(REPORT_TIMEZONE) \
+	    BudgetLimitUsd=$(AI_BUDGET_USD) "BudgetEmail=$(MAIL_TO)"
+
+.PHONY: aws-ai-token
+aws-ai-token: ## Print a Cognito ID token for TEST_EMAIL/TEST_PASSWORD (what parse-live signs in with)
+	@test -n "$(TEST_EMAIL)" -a -n "$(TEST_PASSWORD)" || { echo "Set TEST_EMAIL and TEST_PASSWORD in .env"; exit 1; }
+	@aws cognito-idp initiate-auth --auth-flow USER_PASSWORD_AUTH \
+	  --client-id $(COGNITO_CLIENT) \
+	  --auth-parameters USERNAME=$(TEST_EMAIL),PASSWORD=$(TEST_PASSWORD) \
+	  --query AuthenticationResult.IdToken --output text
+
+.PHONY: parse-live
+parse-live: ## Parse through the DEPLOYED Lambda: make parse-live TEXT="..." (real tokens, latency, cost)
+	@test -n "$(TEXT)" || { echo 'Usage: make parse-live TEXT="..."'; exit 1; }
+	@url="$(PARSER_URL)"; [ -n "$$url" ] && [ "$$url" != None ] || \
+	  { echo "Parser stack not found: run 'make aws-ai-deploy'"; exit 1; }; \
+	  token=$$($(MAKE) -s aws-ai-token) || exit 1; \
+	  python3 -c 'import json, sys; print(json.dumps({"text": sys.argv[1]}))' "$(TEXT)" | \
+	  curl -sS -X POST "$$url" -H "Authorization: Bearer $$token" \
+	    -H 'Content-Type: application/json' --data-binary @- \
+	    -w 'HTTP %{http_code} in %{time_total}s'
+
+.PHONY: parse-table
+parse-table: ## Run every input in $(PARSE_INPUTS) through the deployed Lambda and print the results table
+	@url="$(PARSER_URL)"; [ -n "$$url" ] && [ "$$url" != None ] || \
+	  { echo "Parser stack not found: run 'make aws-ai-deploy'"; exit 1; }; \
+	  token=$$($(MAKE) -s aws-ai-token) || exit 1; \
+	  python3 infra/scripts/parse_table.py --url "$$url" --token "$$token" \
+	    --inputs $(PARSE_INPUTS) --out $(PARSE_RESULTS)
+
+.PHONY: aws-ai-logs
+aws-ai-logs: ## Tail the parser's logs (one JSON line per parse)
+	aws logs tail /aws/lambda/$(PARSER_FUNCTION) --follow --since 30m
+
+.PHONY: aws-ai-outputs
+aws-ai-outputs: ## Show parser stack outputs (URL, function, model, budget)
+	@aws cloudformation describe-stacks --stack-name $(AI_STACK) \
+	  --query "Stacks[0].Outputs[].[OutputKey, OutputValue]" --output table
+
+.PHONY: aws-ai-destroy
+aws-ai-destroy: aws-check ## Delete the parser stack (and the budget alarm with it)
+	@read -p "Delete stack $(AI_STACK) (parser Lambda, its URL and the budget)? [y/N] " ok && [ "$$ok" = y ]
+	aws cloudformation delete-stack --stack-name $(AI_STACK)
+	aws cloudformation wait stack-delete-complete --stack-name $(AI_STACK)
 
 ##@ AWS (all parts)
 

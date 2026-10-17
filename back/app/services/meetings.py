@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import Meeting, Participant, User
-from app.schemas import MeetingCreate
+from app.schemas import AgendaSave, MeetingCreate
 from app.services.errors import NotFoundError
 
 # Meetings are personal: every query is scoped to the owner's user ID.
@@ -74,3 +74,21 @@ def update_meeting(db: Session, meeting_id: UUID, data: MeetingCreate, user: Use
 def delete_meeting(db: Session, meeting_id: UUID, user: User) -> None:
     db.delete(get_meeting(db, meeting_id, user))
     db.commit()
+
+
+def save_agenda(db: Session, meeting_id: UUID, data: AgendaSave, user: User) -> Meeting:
+    """Store the agenda of a meeting the user owns.
+
+    This is the endpoint the "Paste an agenda" screen saves through - the parser's own function
+    URL cannot write anything. When the save carries an `ai_suggestion`, what the model proposed
+    is recorded with it; a later hand-edited save leaves that record alone, so the pair
+    (suggestion, what was kept) stays comparable.
+    """
+    meeting = get_meeting(db, meeting_id, user)
+    meeting.agenda = data.model_dump(mode="json", include={"items", "action_items"})
+    if data.ai_suggestion is not None:
+        meeting.ai_suggestion = data.ai_suggestion
+        meeting.ai_model = data.model
+        meeting.ai_prompt_version = data.prompt_version
+    db.commit()
+    return get_meeting(db, meeting.id, user)

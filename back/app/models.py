@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Column, DateTime, ForeignKey, Index, String, Table, Text, Uuid, func, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -49,6 +50,17 @@ class Meeting(Base):
     owner_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
+
+    # The agenda as the user saved it: {"items": [...], "action_items": [...]}. One JSONB column
+    # rather than two tables, because an agenda is always read and written whole with its meeting
+    # and is never queried item by item.
+    agenda: Mapped[dict | None] = mapped_column(JSONB)
+    # What the model proposed for this agenda, kept verbatim next to what the user kept, so the
+    # two can be compared later - per prompt version - without replaying any parse.
+    ai_suggestion: Mapped[dict | None] = mapped_column(JSONB)
+    ai_model: Mapped[str | None] = mapped_column(String(100))
+    ai_prompt_version: Mapped[str | None] = mapped_column(String(50))
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

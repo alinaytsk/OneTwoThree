@@ -16,6 +16,8 @@ dependencies = [
     # Weekly report Lambda: S3 writes, and a tz database the Lambda image does not ship.
     "boto3>=1.35",
     "tzdata>=2024.1",
+    # Agenda parser Lambda: Claude on Bedrock through the Anthropic Messages API.
+    "anthropic[bedrock]>=0.75",
 ]
 
 [dependency-groups]
