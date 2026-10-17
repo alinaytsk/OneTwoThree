@@ -38,22 +38,47 @@ are in [§7](#7-why-not-opus-55-measured).
 40 files: the parser and its Lambda, `infra/ai.yml`, migration `0004`, the agenda endpoint, the
 frontend screen, the ADR, the test inputs and their results.
 
-## 2. What the screencast shows (45 s)
+## 2. What the screencast shows (32 s)
 
 Recorded from the deployed site (`https://dm3js9endd52u.cloudfront.net`), signed in as a normal
-user. The timings below are approximate; what matters is the order, because the order is the
-point — the model fills the form in, the user overrules one of its answers, and only then is
-anything saved.
+user. The timings are approximate; the order is the point — the model fills the form in, the
+user overrules it, and only then is anything saved.
+
+The pasted text is 188 characters of the kind of note this feature exists for — a weekday, a
+duration, three numbered points with two owners, and one task with a deadline:
+
+> Чт 15:00, пошук новиг інвесторів, 60 хв. 1) нові тарифи Pro — Олена, 15 хв 2) фідбек від
+> клієнтів — Taras 3) що робимо з річною знижкою. Taras до п'ятниці збирає порівняння з
+> конкурентами.
 
 | ≈ Time | On screen |
 |---|---|
-| 0:00–0:08 | A meeting is open. The agenda form is empty; above it the dashed **Paste an agenda** box with its 0 / 10 000 counter. |
-| 0:08–0:13 | The Ukrainian email is pasted (input 1 of the table) and **Parse** pressed. |
-| 0:13–0:18 | The progress line "Reading the text… this takes a few seconds" with the **Cancel** button next to it. |
-| 0:18–0:28 | The form fills in: title "Зустріч по спринту", date 2026-10-20, 15:00–16:00, three agenda items with owners and minutes, two action items with dates. Eighteen fields carry a grey **suggested** badge; "Ретро спринту" has no owner and no badge there, because the text did not say. |
-| 0:28–0:36 | One field is corrected: the owner of item 1, "Оля" → "Ольга Шевченко". That field's **suggested** badge disappears; the other seventeen stay. |
-| 0:36–0:42 | **Save changes** → toast "Meeting updated". In the browser's network tab: `POST` to the parser's function URL happened at 0:13, and `PUT /api/meetings/{id}/agenda` to the API now — the save never touches the parser. |
-| 0:42–0:45 | The meeting is reopened: the agenda is there, with no suggested badges, because it is saved data now. |
+| 0:00–0:05 | A meeting is open, with a call link and `Room 204`. The agenda below it is empty; above it the dashed **Paste an agenda** box and its `0 / 10 000` counter. |
+| 0:05–0:08 | The note is pasted — the counter reads `188 / 10 000` — and **Parse** is pressed. |
+| 0:08–0:17 | The progress line "Reading the text… this takes a few seconds" with **Cancel** beside it, for about nine seconds. |
+| 0:17–0:24 | The form fills in: title "пошук новиг інвесторів", 23 October 2026, 15:00–16:00, three agenda items ("нові тарифи Pro" / Олена / 15 хв, "фідбек від клієнтів" / Taras, "що робимо з річною знижкою" with nobody against it), and one action item for Taras dated 24 October. **Thirteen fields carry a grey `suggested` badge** — and only thirteen: where the note says nothing, the field stays empty and unbadged rather than guessed. |
+| 0:24–0:28 | A field is corrected by hand: **Place** becomes `6767`. |
+| 0:28–0:32 | **Save changes** → the toast "Meeting updated". |
+
+Two things the recording happens to show that are worth naming at the defence, because both are
+in [§6](#6-answers--step-5) as measured defects rather than as surprises:
+
+- **The date is wrong, visibly.** "Чт" is Thursday, which was 22 October 2026; the form shows
+  **23 October, a Friday**. The deadline is off the same way: "до п'ятниці" is Friday the 23rd,
+  and the action item says the 24th. Running this exact text through the deployed parser
+  reproduces it (`starts_at: 2026-10-23T15:00:00`, `due: 2026-10-24`, 1645→282 tokens,
+  $0.009165, 5 573 ms), so the screencast is a sixth data point for the weekday defect in §6,
+  not a one-off.
+- **The badge is the safety net.** That wrong date sits in a field marked `suggested`, which is
+  exactly the design claim: a model-filled value is visible as not-yet-checked until a person
+  looks at it.
+
+What the recording does **not** show: a `suggested` badge being cleared. `Place` is not a field
+the parser fills — the model proposes a title, a start, a duration, agenda items and action
+items — so editing it corrects the form without demonstrating that the badge disappears on first
+edit. That behaviour is covered by a frontend test instead ("drops the suggested mark on a field
+as soon as the user edits it", `front/src/test/PasteAgenda.test.tsx`), which asserts the badge
+count falls from eleven to ten when one owner is retyped.
 
 ## 3. The deployed shape
 
@@ -163,6 +188,12 @@ read "до кінця тижня" as Monday the 19th while input 3 read "by end 
 wherever the text was silent. So this is not a missing rule: the same prompt resolved "у
 вівторок" correctly in input 1. It is the model doing calendar arithmetic in its head, given
 only `TODAY is 2026-10-17` and no weekday.
+
+The screencast is a sixth, unplanned instance of the same defect, which is why it is described
+rather than hidden in [§2](#2-what-the-screencast-shows-32-s): its note begins "Чт 15:00" and the
+form fills in **23 October, a Friday**, with the deadline "до п'ятниці" landing on the 24th.
+Three different phrasings — "next Tuesday", "Wednesday", "Чт" — each resolved one day late,
+while the clock times were right every time.
 
 That tells you which lever to pull:
 
