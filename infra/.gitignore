@@ -1,0 +1,8 @@
+.terraform/
+.build/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+generated.tf
