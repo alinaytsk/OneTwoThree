@@ -14,3 +14,7 @@ infra/*.params.env
 # Vite local env overrides (machine-specific build values)
 .env.local
 .env.*.local
+
+# Serverless Framework build output. It held a symlink to an absolute path outside the
+# repository, which HCP Terraform refuses to package ("illegal slug error: invalid symlink").
+back/.serverless/
