@@ -5,6 +5,9 @@
 # No vpc_config, on purpose: the function needs Bedrock and the Cognito JWKS, both public
 # endpoints, and needs no database. The component the browser can hand 10 000 characters of
 # untrusted text to has no route to the meetings data.
+#
+# Keeping it outside the VPC also keeps a Bedrock interface endpoint off the bill ($7.30 a
+# month), which is the comparison the Lab 6 submission makes against the per-parse cost.
 
 locals {
   parser_name = "${var.project_name}-agenda-parser"
