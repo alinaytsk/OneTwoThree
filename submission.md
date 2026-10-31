@@ -11,8 +11,8 @@ against the live account today, not reconstructed.
 
 | # | Submission item | Status |
 |---|---|---|
-| 1 | Commit that replaces the three templates, updates the Makefile and README, adds the ADR | ✅ pull request below |
-| 2 | Screenshot of an HCP Terraform run finishing with **Apply finished**, started by a push | ⏳ needs the workspace connected to the repository — see [§6](#6-what-is-left-and-why-only-you-can-do-it) |
+| 1 | Commit that replaces the three templates, updates the Makefile and README, adds the ADR | ✅ branch `test-pr`, pushed — [§1](#1-commit) |
+| 2 | Screenshot of an HCP Terraform run finishing with **Apply finished**, started by a push | ⏳ the pull request is not open yet — see [§6](#7-what-is-left-and-why-only-you-can-do-it) |
 | 3 | `terraform plan` right after the migration, ending in **No changes** | ✅ [§3](#3-the-plan-right-after-the-migration) |
 
 | Part 2 step | Status |
@@ -20,16 +20,31 @@ against the live account today, not reconstructed.
 | 1. Lay out the folder | ✅ `infra/` is one root module |
 | 2. Translate the templates | ✅ 28 CloudFormation resources → 43 Terraform ones |
 | 3. Adopt, do not re-create | ✅ **38 imported, 4 created, 18 changed, 0 destroyed** |
-| 4. Makefile and pipeline | ✅ Makefile reads `terraform output`; no `terraform apply` in it. Workspace ↔ repository: yours |
-| 5. Drift | ⏳ needs a run in HCP Terraform |
+| 4. Makefile and pipeline | ✅ Makefile reads `terraform output`; no `terraform apply` in it. Workspace ↔ repository connected, working directory `infra` |
+| 5. Drift | ✅ timeout changed by hand, plan caught it, value restored — [§6](#6-drift-what-the-plan-caught) |
 | 6. ADR | ✅ [docs/adr/0007-terraform.md](docs/adr/0007-terraform.md) |
 | 7. Think it through | ✅ [§5](#5-answers-for-step-7) |
 
+| Part 1 step | Status |
+|---|---|
+| 1-5. The playground, the state experiments, three environments | ✅ `tf-playground/` |
+| 6. Move the state to HCP Terraform | ✅ migrated: 48 entries in the workspace, local `terraform.tfstate*` deleted |
+| 7. Dynamic AWS credentials | ✅ `tf-bootstrap/`, role `terraform-cloud-oidc-role` — proven by a remote run that refreshed all 38 resources |
+| 8. One plan, two clouds (Google Cloud) | ❌ not done |
+| 9. Destroy the playground | ✅ `Destroy complete! Resources: 4 destroyed` |
+
 ## 1. Commit
 
-The migration is one pull request: **https://github.com/alinaytsk/OneTwoThree/pull/new/test-pr**
-(branch `test-pr`). It deletes `infra/auth.yaml`, `infra/reports.yml` and `infra/ai.yml`, adds
-the Terraform module, rewires the Makefile, updates the README and adds the ADR.
+The migration is on the pushed branch `test-pr`, in two commits:
+[`a63492c`](https://github.com/alinaytsk/OneTwoThree/commit/a63492c) is the migration itself -
+it deletes `infra/auth.yaml`, `infra/reports.yml` and `infra/ai.yml`, adds the Terraform module,
+rewires the Makefile and updates the README - and
+[`4e8f0fc`](https://github.com/alinaytsk/OneTwoThree/commit/4e8f0fc) turns on the `cloud` block,
+so runs and state go to the workspace.
+
+The pull request itself still has to be opened, which is the first row of
+[§6](#7-what-is-left-and-why-only-you-can-do-it):
+<https://github.com/alinaytsk/OneTwoThree/compare/main...test-pr>
 
 The bootstrap and the Part 1 playground are already on `main`:
 [`3189d07`](https://github.com/alinaytsk/OneTwoThree/commit/3189d07).
@@ -238,27 +253,77 @@ its own: run `terraform apply`; create the workspace with production-sized value
 production state; or touch `tf-bootstrap`, because that is the role that grants the access in
 the first place.
 
-## 6. What is left, and why only you can do it
+## 6. Drift: what the plan caught
+
+The parser's timeout is 30 seconds in the code ([`infra/variables.tf`](infra/variables.tf),
+`parser_timeout`). It was changed to 45 by hand, the way a 23:00 fix gets made:
+
+```
+aws lambda update-function-configuration --function-name meetings-agenda-parser --timeout 45
+```
+
+The next plan found it without being told where to look - run
+[`run-w2Nb9oUsi2s4kNea`](https://app.terraform.io/app/alinaytsk/meetings-dev/runs/run-w2Nb9oUsi2s4kNea):
+
+```
+  # aws_lambda_function.parser will be updated in-place
+  ~ resource "aws_lambda_function" "parser" {
+        id                             = "meetings-agenda-parser"
+      ~ timeout                        = 45 -> 30
+        # (30 unchanged attributes hidden)
+    }
+
+Plan: 0 to add, 1 to change, 0 to destroy.
+```
+
+Full output: [plan-drift.txt](docs/terraform/plan-drift.txt), and the clean plan after the restore:
+[plan-drift-restored.txt](docs/terraform/plan-drift-restored.txt).
+
+That is the difference from CloudFormation drift detection: nobody asked for a drift report. Every
+plan refreshes the real resources first, so the comparison is not a feature you remember to run.
+
+**Putting it back proved the other half of the setup.** `terraform apply` from the laptop was
+refused outright:
+
+```
+Error: Apply not allowed for workspaces with a VCS connection
+```
+
+Which is the rule the lab asks for, enforced by HCP Terraform rather than by discipline: applies
+happen after a merge, not from someone's terminal. Because `main` does not carry the Terraform
+module yet, the value was restored with the AWS CLI instead; once the pull request is merged, the
+merge-triggered apply is what would reconcile it.
+
+A plan right after that is clean again - run
+[`run-Lde5pLTsTNh5288q`](https://app.terraform.io/app/alinaytsk/meetings-dev/runs/run-Lde5pLTsTNh5288q) ends in
+`No changes. Your infrastructure matches the configuration.`
+
+**If the 45 seconds had been a real fix**, this plan would have thrown it away - and the loss would
+be the diagnosis, not the number: that one parse can exceed 30 seconds under load. The fix belongs
+in `parser_timeout`, in a pull request, with that reason in the message. The honest version of the
+night shift is: change it by hand to stop the bleeding, then open the pull request the same night,
+so the next plan agrees with the console. A fix that lives only in the console is a fix with a
+deadline on it - the next apply.
+
+## 7. What is left, and why only you can do it
 
 | Step | Why it needs you |
 |---|---|
-| Migrate the state to HCP Terraform | `terraform login` opens a browser and stores an API token. Once the token file exists, uncommenting the `cloud` block in `infra/versions.tf` and running `terraform init` migrates the local state up — I have left the block written and commented. |
-| Connect the workspace to the repository | Settings → Version Control in HCP Terraform, with **Terraform Working Directory = `infra`**. |
-| Workspace variables | `TFC_AWS_PROVIDER_AUTH = true`, `TFC_AWS_RUN_ROLE_ARN = arn:aws:iam::896138901201:role/terraform-cloud-oidc-role`, and `google_client_secret` as a **sensitive** Terraform variable. |
+| `google_client_secret` in the workspace | A **sensitive** Terraform variable. Until it is set, a run started by the repository fails with *No value for required variable*: the remote plan that passed took the value from a local CLI run, which a VCS-driven run has no way to do. |
+| `TFC_AWS_*` in the right category | `TFC_AWS_PROVIDER_AUTH` and `TFC_AWS_RUN_ROLE_ARN` are set, but in the **terraform** category instead of **env**. The credentials work anyway; the price is two *Value for undeclared variable* warnings at the end of every plan. |
+| Open the pull request | <https://github.com/alinaytsk/OneTwoThree/compare/main...test-pr>. A push to a non-default branch starts no run; the pull request is what asks HCP Terraform for the plan. |
 | **Submission item 2** | Merge the pull request and screenshot the run that ends with *Apply finished*. |
-| Step 5, drift | New run → Plan only in HCP, after changing something by hand (the parser's timeout is a good one). |
-| Part 1 Step 8 (two clouds) and Step 9 (destroy the playground) | `gcloud auth application-default login`, and the playground teardown. |
+| Part 1 Step 8 (two clouds) | `gcloud auth application-default login`, a `google` provider and a `google_storage_bucket` in the playground. The playground is destroyed now, so this one starts with an apply again. |
 
-**Do not merge the pull request before the state is in HCP Terraform.** The workspace would
-start from an empty state and plan to create all 42 resources again. Locally the state is
-correct and the plan is clean; the migration is what carries that up.
+The state is already in HCP Terraform, so the workspace will not start from nothing. The order
+that matters now is **the secret variable first, the pull request second**.
 
-## 7. Honest notes
+## 8. Honest notes
 
-- **The state is still local**, in `infra/terraform.tfstate`, and it contains the database
-  password in clear text (CloudFormation resolved that secret at deploy time and never stored
-  it). It is git-ignored in all three Terraform folders, but it should not stay on a laptop —
-  that is the first item in §6.
+- **The state is in HCP Terraform** and it holds the database password in clear text
+  (CloudFormation resolved that secret at deploy time and never stored it). The local
+  `terraform.tfstate` and its 118 KB backup were deleted after the migration, which is the
+  whole point: that file should not sit on a laptop.
 - **The parser timed out once**, right after the apply replaced its configuration: a cold start
   plus a model call crossed the 30-second limit and the URL returned 502. The next two calls
   returned 200 in 8.1 s and 4.1 s. If it happens again under load, the timeout is the thing to
@@ -266,7 +331,18 @@ correct and the plan is clean; the migration is what carries that up.
 - **Four Lambda permission statements were deleted by hand** (`aws lambda remove-permission`).
   That is the only change made outside Terraform during the migration, and it was removing what
   the deleted stacks had left, not creating anything.
-- **`tf-playground/` is still deployed** — one S3 bucket, `meetings-dev-tf-playground-da68d099`.
-  Part 1 Step 9 destroys it.
+- **`tf-playground/` is destroyed.** The plan read `0 to add, 0 to change, 4 to destroy` - the
+  bucket `meetings-dev-tf-playground-da68d099`, its versioning and its lifecycle configuration,
+  and the random suffix - and the apply ended with `Destroy complete! Resources: 4 destroyed`.
+  The code and its three `.tfvars` files stay in the repository.
+- **The client secret is not drifting; it is marked wrong.** A plan without
+  `ignore_changes` on `provider_details["client_secret"]` asks for one in-place update to the
+  Google identity provider. The value is not what differs: the variable, the state and the live
+  Cognito provider hold byte-identical secrets, same SHA-256. The attribute entered the state
+  through an import, which recorded it as non-sensitive, while the config feeds it from a
+  sensitive variable. Taking that update would call `UpdateIdentityProvider` on a live login
+  path to write back the same bytes, so the line stays; removing it and applying once would
+  settle it for good. An earlier version of this file and of the ADR claimed Cognito masks the
+  secret on read - it does not, and both are corrected.
 - **The ADR was drafted by the assistant and then read and corrected**, which is the point the
   lab makes about ADRs nobody reads.
