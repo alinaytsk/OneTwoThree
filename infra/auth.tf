@@ -96,10 +96,13 @@ resource "aws_cognito_identity_provider" "google" {
   }
 
   lifecycle {
-    # Cognito never returns the client secret - a read gives back a masked value - so every
-    # plan would show this one key as changed and "No changes" would be unreachable. The secret
-    # is still set on create and on any deliberate change to this block; rotating it means
-    # changing it in Google Cloud and here, then removing this line for one apply.
+    # Cognito does return the client secret on read, and the value in state, in the variable and
+    # in Cognito are byte-identical. What a plan without this line reports is not a value change
+    # but a marking one: the attribute entered state through an import, so state records it as
+    # non-sensitive, while the config now feeds it from a sensitive variable, and Terraform wants
+    # one in-place update to re-mark it. That update would call UpdateIdentityProvider on a live
+    # login path to write back the same bytes, so the line stays and the plan stays clean. To
+    # drop it, remove this line and apply once; afterwards plans are clean without it.
     ignore_changes = [provider_details["client_secret"]]
   }
 }

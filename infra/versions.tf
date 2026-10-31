@@ -12,14 +12,16 @@ terraform {
     }
   }
 
-  # Part 1, Step 6 puts the state in HCP Terraform. Filled in once the organization exists:
-  #
-  # cloud {
-  #   organization = "<organization>"
-  #   workspaces { name = "meetings-dev" }
-  # }
-  #
-  # Until then the state is local, which is why terraform.tfstate* is in .gitignore.
+  # The state lives in HCP Terraform: stored, locked for the duration of every run, and kept
+  # version by version. The workspace name matches the one the bootstrap role's trust policy is
+  # pinned to (organization:alinaytsk:project:Default Project:workspace:meetings-dev).
+  cloud {
+    organization = "alinaytsk"
+
+    workspaces {
+      name = "meetings-dev"
+    }
+  }
 }
 
 provider "aws" {

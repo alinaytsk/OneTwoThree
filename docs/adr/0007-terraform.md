@@ -86,10 +86,16 @@ itself was done, because the state did not exist yet.
 
 - **The Google client secret** is a `sensitive` variable, set in the HCP Terraform workspace,
   never in `terraform.tfvars`. Plans print `(sensitive value)`. It is also in the state, because
-  `sensitive = true` hides a value from the plan output, not from the state file. Cognito never
-  returns it on read, so the provider would show it as changed on every plan; `ignore_changes`
-  on that one key is what makes `No changes` reachable, and rotating the secret means changing
-  it in Google Cloud and here and removing that line for one apply.
+  `sensitive = true` hides a value from the plan output, not from the state file. Cognito does
+  return the secret on read - `describe-identity-provider` prints it in clear text - and the
+  value in the variable, in the state and in Cognito are byte-identical, verified by hash. The
+  reason `ignore_changes` sits on that one key is narrower than it first looks: the attribute
+  entered the state through an import, which recorded it as non-sensitive, while the config feeds
+  it from a sensitive variable, so a plan without the line asks for one in-place update purely to
+  re-mark it. Taking that update would call `UpdateIdentityProvider` on a live login path to write
+  back the same bytes, which is not worth it before a demo; removing the line and applying once
+  would also settle it for good. Rotating the secret means changing it in Google Cloud and in the
+  workspace variable, then removing the line for one apply.
 - **The database password** is new in the state. CloudFormation resolved
   `{{resolve:secretsmanager:...}}` at deploy time and never stored the value; Terraform reads
   the secret with a data source to put it in the builder's environment, so it lands in the state

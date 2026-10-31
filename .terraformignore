@@ -1,0 +1,33 @@
+# What HCP Terraform does not need when it uploads this repository as the context for a run.
+#
+# Without the first entry a CLI-driven run fails outright: back/.venv is a virtualenv created
+# inside WSL, and bin/python is a symlink that Windows cannot read -
+#   Error: Failed to upload configuration files: failed to read symlink ".../back/.venv/bin/python"
+# The rest is weight: node_modules and the built frontend are tens of megabytes that no plan
+# will ever look at.
+
+.git/
+
+# Python
+back/.venv/
+back/.serverless/
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+
+# JavaScript
+front/node_modules/
+front/dist/
+back/node_modules/
+
+# Terraform's own working directories and any state that is still on disk
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+
+# Local-only settings
+.env
+front/.env.production.local
