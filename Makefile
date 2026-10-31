@@ -26,16 +26,21 @@ ifndef TAG
 TAG         := $(shell git describe --always --dirty=-dirty-$$(date +%Y%m%d%H%M%S) 2>/dev/null || date +%Y%m%d%H%M%S)
 endif
 
+# Terraform owns auth, the weekly report and the agenda parser (infra/*.tf). The VPC, the
+# database, the API Lambda, the ECR repository, the application's Cognito pool and the site are
+# still CloudFormation; `infra/data.tf` reads the backend stack's outputs.
+# `terraform` on Linux and macOS, `terraform.exe` when make runs under WSL or Git Bash against
+# a Windows install. Override with `make TF=tofu ...` for OpenTofu.
+TF                ?= $(shell command -v terraform 2>/dev/null || command -v terraform.exe 2>/dev/null || echo terraform)
+TF_DIR            := infra
+
 BACKEND_ECR_STACK := $(PROJECT)-backend-ecr
 BACKEND_STACK     := $(PROJECT)-backend
 BACKEND_FUNCTION  := $(PROJECT)-backend
 BACKEND_PARAMS    := infra/backend.params.env
 FRONTEND_STACK    := $(PROJECT)-frontend
 COGNITO_STACK     := $(PROJECT)-cognito
-REPORTS_STACK     := $(PROJECT)-reports
 REPORTS_QUEUE     := $(PROJECT)-report-requests
-MAILER_FUNCTION   := $(PROJECT)-report-mailer
-MAILER_SRC        := infra/lambda/report_mailer.py
 # Every resource gets this tag (in the templates and as a stack tag).
 STACK_TAGS        := PROJECT_NAME=$(PROJECT)
 
@@ -49,18 +54,13 @@ CERT_SH           := PROJECT_NAME=$(PROJECT) infra/scripts/cert.sh
 # Browser origins the API always allows besides the frontend's (local development).
 CORS_LOCAL        ?= http://localhost:3000,http://localhost:5173
 
-# --- Weekly report (`make aws-reports-deploy`) ---
+# --- Weekly report. The infrastructure is infra/reports.tf; these are only for the CLI. ---
 # MAIL_FROM and MAIL_TO belong in .env; the sender has to be verified in SES first.
 REPORT_TIMEZONE   ?= Europe/Kyiv
-REPORT_RETENTION  ?= 90
-# SQS needs the queue's visibility timeout to be at least the consumer's timeout, and AWS
-# recommends 6x, so both come from this one number instead of drifting apart.
-BUILDER_TIMEOUT   ?= 120
 # Optional: creates the SES domain identity, whose DKIM records are published by hand.
 SES_DOMAIN        ?=
 
-# --- Agenda parser (`make llm-hello`, `make parse`, `make aws-ai-deploy`) ---
-AI_STACK          := $(PROJECT)-ai
+# --- Agenda parser. The infrastructure is infra/ai.tf; these drive `make parse` locally. ---
 PARSER_FUNCTION   := $(PROJECT)-agenda-parser
 # Model id on Bedrock. Override to compare: `make parse PARSER_MODEL=anthropic.claude-haiku-5-5 TEXT=...`
 PARSER_MODEL      ?= anthropic.claude-opus-5-5
@@ -68,11 +68,6 @@ PARSER_MODEL      ?= anthropic.claude-opus-5-5
 # `invoke_model` (the older bedrock-runtime path, the one that takes `us.`-prefixed
 # cross-region inference profile ids and pre-5 model versions).
 PARSER_BACKEND    ?= mantle
-# MB for the parser Lambda. Passed on every deploy, not left to the template default:
-# `aws cloudformation deploy` keeps an existing stack's parameter when it is not given
-# one, so a changed default alone would never reach a deployed stack. 1024 because at
-# 512 the cold start hit Lambda's 10 s init limit (see infra/ai.yml).
-PARSER_MEMORY     ?= 1024
 # Empty for a model before the 5 family: they reject output_config outright.
 PARSER_EFFORT     ?= low
 # Bedrock prices of $(PARSER_MODEL) in USD per million tokens; they go into the logged cost.
@@ -95,8 +90,6 @@ PARSER_PRICE_IN     := 3
 PARSER_PRICE_OUT    := 15
 PARSER_PRICE_SOURCE := public-list
 endif
-# Monthly budget whose breach emails $(MAIL_TO) (AWS Budgets, in the AI stack).
-AI_BUDGET_USD     ?= 5
 # The five test pastes of `make parse-table`, and where their full answers are written.
 PARSE_INPUTS      ?= docs/agenda-tests/inputs.json
 PARSE_RESULTS     ?= docs/agenda-tests/results.json
@@ -121,20 +114,10 @@ BACKEND_PARAMS_ARGS = $(shell [ -f $(BACKEND_PARAMS) ] && grep -v -e '^[[:space:
 backend_output  = $(call stack_output,$(BACKEND_STACK),$(1))
 frontend_output = $(call stack_output,$(FRONTEND_STACK),$(1))
 cognito_output  = $(call stack_output,$(COGNITO_STACK),$(1))
-reports_output  = $(call stack_output,$(REPORTS_STACK),$(1))
-ai_output       = $(call stack_output,$(AI_STACK),$(1))
-# The builder runs the backend image, so that image has to contain app/reports. Hence
-# aws-reports-deploy builds and pushes it, and deploys exactly the tag it just pushed.
-# Reusing whatever image the API happens to be running does not work: it can predate the feature,
-# and then the stack deploys green while every run dies on "No module named 'app.reports'".
-# $(TAG) alone does not work either - with a dirty tree it names an image nobody pushed, and the
-# stack fails with "Source image does not exist" - which is why the push is a prerequisite and the
-# recipe checks ECR before deploying. (The API keeps its own image until aws-backend-stack runs.)
-REPORTS_IMAGE   = $(or $(IMAGE_URI),$(ECR_URI):$(TAG))
-# Same story as REPORTS_IMAGE: the parser runs the backend image, so the image it deploys has to
-# be one that already contains app/ai and the anthropic dependency.
-AI_IMAGE        = $(or $(IMAGE_URI),$(ECR_URI):$(TAG))
-PARSER_URL      = $(call ai_output,ParserUrl)
+# The reports and the parser are Terraform's now, so their values come from the state rather
+# than from a stack. One shell-out per lookup, resolved only when a recipe needs it.
+tf_output       = $(shell cd $(TF_DIR) && $(TF) output -raw $(1) 2>/dev/null)
+PARSER_URL      = $(call tf_output,parser_url)
 API_URL          = $(call backend_output,ApiUrl)
 FRONTEND_ORIGINS = $(call frontend_output,SiteOrigins)
 CORS_ORIGINS_AWS = $(CORS_LOCAL)$(if $(FRONTEND_ORIGINS),$(COMMA)$(FRONTEND_ORIGINS))
@@ -438,63 +421,14 @@ aws-cognito-destroy: aws-check ## Delete the Cognito stack — ALL user accounts
 	aws cloudformation delete-stack --stack-name $(COGNITO_STACK)
 	aws cloudformation wait stack-delete-complete --stack-name $(COGNITO_STACK)
 
-##@ AWS weekly report (S3 + SQS + EventBridge Scheduler + two Lambdas + SES)
-
-.PHONY: aws-reports-deploy
-aws-reports-deploy: aws-check aws-backend-push aws-reports-stack aws-reports-mailer-code ## Deploy the weekly report: build and push the image, the stack, then the mailer handler
-	@echo
-	@echo "Bucket:   $(call reports_output,ReportsBucketName)"
-	@echo "Queue:    $(call reports_output,ReportRequestsQueueUrl)"
-	@echo "Schedule: Monday 07:00 $(REPORT_TIMEZONE)  (one-off: make report-now WEEK=$$(date +%G-W%V))"
-
-.PHONY: aws-reports-stack
-aws-reports-stack: ## Create/update the reports stack with image tag $(TAG) (must already be pushed); IMAGE_URI=... or KEEP_IMAGE=1 to override
-	$(call clear_failed_stack,$(REPORTS_STACK))
-	@test -n "$(KEEP_IMAGE)$(IMAGE_URI)" || \
-	  aws ecr describe-images --repository-name $(PROJECT)-backend --image-ids imageTag=$(TAG) >/dev/null 2>&1 || { \
-	    echo "Image $(PROJECT)-backend:$(TAG) is not in ECR, so the stack would roll back."; \
-	    echo "Use \`make aws-reports-deploy\` (it builds and pushes first), or \`make aws-backend-push\`,"; \
-	    echo "or pass IMAGE_URI=<uri> / KEEP_IMAGE=1 to keep the image the stack already has."; exit 1; }
-	@test -n "$(MAIL_FROM)" -a -n "$(MAIL_TO)" || { echo "Set MAIL_FROM and MAIL_TO in .env (the sender must be verified in SES)"; exit 1; }
-	@# The reports stack reads the network from the backend stack. The route table and these
-	@# outputs were added for this lab, so an older backend stack has to be updated once.
-	@test -n "$(call backend_output,PrivateRouteTableId)" || { \
-	  echo "Backend stack has no PrivateRouteTableId output — it predates infra/reports.yml."; \
-	  echo "Update it first:  make aws-backend-stack KEEP_IMAGE=1"; exit 1; }
-	aws cloudformation deploy --stack-name $(REPORTS_STACK) --template-file infra/reports.yml \
-	  --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset --tags $(STACK_TAGS) \
-	  --parameter-overrides ProjectName=$(PROJECT) $(if $(KEEP_IMAGE),,ImageUri=$(REPORTS_IMAGE)) \
-	    Architecture=$(LAMBDA_ARCH) \
-	    VpcId=$(call backend_output,VpcId) \
-	    "SubnetIds=$(call backend_output,PrivateSubnetIds)" \
-	    SecurityGroupId=$(call backend_output,BackendSecurityGroupId) \
-	    RouteTableId=$(call backend_output,PrivateRouteTableId) \
-	    DbEndpoint=$(call backend_output,DbEndpoint) DbPort=$(call backend_output,DbPort) \
-	    DbName=$(call backend_output,DbName) DbUsername=$(call backend_output,DbUsername) \
-	    DbSecretArn=$(call backend_output,DbSecretArn) \
-	    BuilderTimeout=$(BUILDER_TIMEOUT) QueueVisibilityTimeout=$$(( $(BUILDER_TIMEOUT) * 6 )) \
-	    ReportTimezone=$(REPORT_TIMEZONE) RetentionDays=$(REPORT_RETENTION) \
-	    "MailFrom=$(MAIL_FROM)" "MailTo=$(MAIL_TO)" "SesDomain=$(SES_DOMAIN)"
-
-.PHONY: aws-reports-mailer-code
-aws-reports-mailer-code: ## Upload $(MAILER_SRC) to the mailer Lambda (the stack only carries a placeholder)
-	@py=$$(command -v python3 || command -v python) || { echo "python not found"; exit 1; }; \
-	tmp=$$(mktemp -d); \
-	"$$py" -c "import sys, zipfile; zipfile.ZipFile(sys.argv[1], 'w', zipfile.ZIP_DEFLATED).write(sys.argv[2], 'report_mailer.py')" \
-	  "$$tmp/mailer.zip" "$(MAILER_SRC)" && \
-	aws lambda update-function-code --function-name $(MAILER_FUNCTION) \
-	  --zip-file "fileb://$$tmp/mailer.zip" --publish \
-	  --query "[FunctionName, LastUpdateStatus, CodeSize]" --output text; \
-	status=$$?; rm -rf "$$tmp"; exit $$status
+##@ Weekly report (Terraform: infra/reports.tf)
 
 .PHONY: report-now
 report-now: ## Build one week's report immediately: make report-now WEEK=2026-W40 [FORCE=1]
 	@test -n "$(WEEK)" || { echo "Usage: make report-now WEEK=2026-W40 [FORCE=1]   (this week: $$(date +%G-W%V))"; exit 1; }
-	@# Prefer the stack output; fall back to looking the queue up by name if the stack is gone.
-	@url="$(call reports_output,ReportRequestsQueueUrl)"; \
-	[ -n "$$url" ] && [ "$$url" != None ] || \
-	  url=$$(aws sqs get-queue-url --queue-name $(REPORTS_QUEUE) --query QueueUrl --output text); \
-	[ -n "$$url" ] || { echo "Queue $(REPORTS_QUEUE) not found: run \`make aws-reports-deploy\` first"; exit 1; }; \
+	@url="$(call tf_output,report_requests_queue_url)"; \
+	[ -n "$$url" ] || url=$$(aws sqs get-queue-url --queue-name $(REPORTS_QUEUE) --query QueueUrl --output text); \
+	[ -n "$$url" ] || { echo "Queue $(REPORTS_QUEUE) not found"; exit 1; }; \
 	body='{"week": "$(WEEK)", "source": "manual"$(if $(FORCE),$(COMMA) "force": true)}'; \
 	echo "aws sqs send-message --queue-url $$url --message-body '$$body'"; \
 	aws sqs send-message --queue-url "$$url" --message-body "$$body" --query MessageId --output text
@@ -503,7 +437,7 @@ report-now: ## Build one week's report immediately: make report-now WEEK=2026-W4
 .PHONY: aws-reports-get
 aws-reports-get: ## Download a built report: make aws-reports-get WEEK=2026-W40
 	@test -n "$(WEEK)" || { echo "Usage: make aws-reports-get WEEK=2026-W40"; exit 1; }
-	aws s3 cp "s3://$(call reports_output,ReportsBucketName)/reports/$(WEEK).csv" -
+	aws s3 cp "s3://$(call tf_output,reports_bucket_name)/reports/$(WEEK).csv" -
 
 .PHONY: aws-reports-logs
 aws-reports-logs: ## Tail both report Lambdas (FN=builder or FN=mailer for one of them)
@@ -511,7 +445,7 @@ aws-reports-logs: ## Tail both report Lambdas (FN=builder or FN=mailer for one o
 
 .PHONY: aws-reports-status
 aws-reports-status: ## Show the schedule, what is in the queues and the reports in the bucket
-	@aws scheduler get-schedule --name $(PROJECT)-weekly-report \
+	@aws scheduler get-schedule --name $(call tf_output,schedule_name) \
 	  --query "{state:State, cron:ScheduleExpression, tz:ScheduleExpressionTimezone, target:Target.Arn}" --output yaml
 	@for q in $(REPORTS_QUEUE) $(REPORTS_QUEUE)-dlq; do \
 	  url=$$(aws sqs get-queue-url --queue-name $$q --query QueueUrl --output text 2>/dev/null) || continue; \
@@ -519,12 +453,7 @@ aws-reports-status: ## Show the schedule, what is in the queues and the reports 
 	    --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible \
 	    --query 'Attributes.[ApproximateNumberOfMessages,ApproximateNumberOfMessagesNotVisible]' --output text) (visible / in flight)"; \
 	done
-	@aws s3 ls "s3://$(call reports_output,ReportsBucketName)/reports/" || true
-
-.PHONY: aws-reports-outputs
-aws-reports-outputs: ## Show reports stack outputs (bucket, queues, functions)
-	@aws cloudformation describe-stacks --stack-name $(REPORTS_STACK) \
-	  --query "Stacks[0].Outputs[].[OutputKey, OutputValue]" --output table
+	@aws s3 ls "s3://$(call tf_output,reports_bucket_name)/reports/" || true
 
 .PHONY: aws-reports-dkim
 aws-reports-dkim: ## Print the DKIM CNAME records to publish for SES_DOMAIN
@@ -533,16 +462,6 @@ aws-reports-dkim: ## Print the DKIM CNAME records to publish for SES_DOMAIN
 	@aws sesv2 get-email-identity --email-identity $(SES_DOMAIN) \
 	  --query "DkimAttributes.Tokens" --output text | tr '\t' '\n' | \
 	  while read -r t; do echo "  $$t._domainkey.$(SES_DOMAIN).  CNAME  $$t.dkim.amazonses.com."; done
-	@echo
-	@aws sesv2 get-email-identity --email-identity $(SES_DOMAIN) \
-	  --query "{verified:VerifiedForSendingStatus, dkim:DkimAttributes.Status}" --output yaml
-
-.PHONY: aws-reports-destroy
-aws-reports-destroy: aws-check ## Empty the reports bucket and delete the reports stack
-	@read -p "Delete stack $(REPORTS_STACK) and every report in its bucket? [y/N] " ok && [ "$$ok" = y ]
-	@bucket="$(call reports_output,ReportsBucketName)"; [ -z "$$bucket" ] || aws s3 rm "s3://$$bucket" --recursive --quiet
-	aws cloudformation delete-stack --stack-name $(REPORTS_STACK)
-	aws cloudformation wait stack-delete-complete --stack-name $(REPORTS_STACK)
 
 ##@ AI agenda parser (Claude on Bedrock + a Lambda outside the VPC)
 
@@ -558,34 +477,6 @@ llm-hello: ## One Bedrock call through the Anthropic Messages API: prints answer
 parse: ## Parse pasted text locally, without the Lambda: make parse TEXT="..."
 	@test -n "$(TEXT)" || { echo 'Usage: make parse TEXT="Sprint planning on Tuesday 15:00 ..."'; exit 1; }
 	cd back && $(PARSER_ENV) uv run python -m app.ai.agenda "$(TEXT)"
-
-.PHONY: aws-ai-deploy
-aws-ai-deploy: aws-check aws-backend-push aws-ai-stack ## Deploy the parser: build and push the image, then the stack
-	@echo
-	@echo "Parser URL: $(call ai_output,ParserUrl)"
-	@echo "Model:      $(call ai_output,ParserModel)"
-	@echo "Budget:     $(AI_BUDGET_USD) USD/month, alerts to $(MAIL_TO)"
-
-.PHONY: aws-ai-stack
-aws-ai-stack: ## Create/update the parser stack with image tag $(TAG) (must already be pushed); IMAGE_URI=... or KEEP_IMAGE=1 to override
-	$(call clear_failed_stack,$(AI_STACK))
-	@test -n "$(KEEP_IMAGE)$(IMAGE_URI)" || \
-	  aws ecr describe-images --repository-name $(PROJECT)-backend --image-ids imageTag=$(TAG) >/dev/null 2>&1 || { \
-	    echo "Image $(PROJECT)-backend:$(TAG) is not in ECR, so the stack would roll back."; \
-	    echo "Use 'make aws-ai-deploy' (it builds and pushes first), or pass IMAGE_URI=<uri> / KEEP_IMAGE=1."; \
-	    exit 1; }
-	@test -n "$(MAIL_TO)" || { echo "Set MAIL_TO in .env: the budget alert is emailed there"; exit 1; }
-	@test -n "$(COGNITO_POOL_ID)" || { echo "Cognito stack not found: run 'make aws-cognito-deploy' first"; exit 1; }
-	aws cloudformation deploy --stack-name $(AI_STACK) --template-file infra/ai.yml \
-	  --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset --tags $(STACK_TAGS) \
-	  --parameter-overrides ProjectName=$(PROJECT) $(if $(KEEP_IMAGE),,ImageUri=$(AI_IMAGE)) \
-	    Architecture=$(LAMBDA_ARCH) "CorsOrigins=$(CORS_ORIGINS_AWS)" \
-	    CognitoUserPoolId=$(COGNITO_POOL_ID) CognitoClientId=$(COGNITO_CLIENT) \
-	    ParserModel=$(PARSER_MODEL) ParserBackend=$(PARSER_BACKEND) ParserEffort=$(PARSER_EFFORT) \
-	    ParserPriceInPerMTok=$(PARSER_PRICE_IN) ParserPriceOutPerMTok=$(PARSER_PRICE_OUT) \
-	    ParserPriceSource=$(PARSER_PRICE_SOURCE) MemorySize=$(PARSER_MEMORY) \
-	    ParserTimezone=$(REPORT_TIMEZONE) \
-	    BudgetLimitUsd=$(AI_BUDGET_USD) "BudgetEmail=$(MAIL_TO)"
 
 .PHONY: aws-ai-token
 aws-ai-token: ## Print a Cognito ID token for TEST_EMAIL/TEST_PASSWORD (what parse-live signs in with)
@@ -618,16 +509,17 @@ parse-table: ## Run every input in $(PARSE_INPUTS) through the deployed Lambda a
 aws-ai-logs: ## Tail the parser's logs (one JSON line per parse)
 	aws logs tail /aws/lambda/$(PARSER_FUNCTION) --follow --since 30m
 
-.PHONY: aws-ai-outputs
-aws-ai-outputs: ## Show parser stack outputs (URL, function, model, budget)
-	@aws cloudformation describe-stacks --stack-name $(AI_STACK) \
-	  --query "Stacks[0].Outputs[].[OutputKey, OutputValue]" --output table
+.PHONY: infra-plan
+infra-plan: ## Plan the Terraform in $(TF_DIR). Read it; applies happen in HCP Terraform after a merge
+	cd $(TF_DIR) && $(TF) plan
 
-.PHONY: aws-ai-destroy
-aws-ai-destroy: aws-check ## Delete the parser stack (and the budget alarm with it)
-	@read -p "Delete stack $(AI_STACK) (parser Lambda, its URL and the budget)? [y/N] " ok && [ "$$ok" = y ]
-	aws cloudformation delete-stack --stack-name $(AI_STACK)
-	aws cloudformation wait stack-delete-complete --stack-name $(AI_STACK)
+.PHONY: infra-fmt
+infra-fmt: ## Format and validate the Terraform
+	cd $(TF_DIR) && $(TF) fmt && $(TF) validate
+
+.PHONY: infra-output
+infra-output: ## Show every Terraform output (bucket, queues, functions, parser URL, ...)
+	cd $(TF_DIR) && $(TF) output
 
 ##@ AWS (all parts)
 
