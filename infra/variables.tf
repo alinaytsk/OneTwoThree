@@ -110,8 +110,8 @@ variable "report_retention_days" {
 
 variable "log_retention_days" {
   type        = number
-  default     = 7
-  description = "Retention of the Lambda log groups."
+  default     = 14
+  description = "Retention of the Lambda log groups. A week was too short to look back at a Monday report run from the following Friday."
 }
 
 variable "mail_from" {
