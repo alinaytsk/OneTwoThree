@@ -11,8 +11,8 @@ against the live account today, not reconstructed.
 
 | # | Submission item | Status |
 |---|---|---|
-| 1 | Commit that replaces the three templates, updates the Makefile and README, adds the ADR | ✅ branch `test-pr`, pushed — [§1](#1-commit) |
-| 2 | Screenshot of an HCP Terraform run finishing with **Apply finished**, started by a push | ⏳ the pull request is not open yet — see [§6](#7-what-is-left-and-why-only-you-can-do-it) |
+| 1 | Commit that replaces the three templates, updates the Makefile and README, adds the ADR | ✅ merged as [#2](https://github.com/alinaytsk/OneTwoThree/pull/2) — [§1](#1-commit) |
+| 2 | Screenshot of an HCP Terraform run finishing with **Apply finished**, started by a push | ⏳ one more merge — see [§7](#7-what-is-left-and-why-only-you-can-do-it) |
 | 3 | `terraform plan` right after the migration, ending in **No changes** | ✅ [§3](#3-the-plan-right-after-the-migration) |
 
 | Part 2 step | Status |
@@ -30,7 +30,7 @@ against the live account today, not reconstructed.
 | 1-5. The playground, the state experiments, three environments | ✅ `tf-playground/` |
 | 6. Move the state to HCP Terraform | ✅ migrated: 48 entries in the workspace, local `terraform.tfstate*` deleted |
 | 7. Dynamic AWS credentials | ✅ `tf-bootstrap/`, role `terraform-cloud-oidc-role` — proven by a remote run that refreshed all 38 resources |
-| 8. One plan, two clouds (Google Cloud) | ❌ not done |
+| 8. One plan, two clouds (Google Cloud) | ❌ not done - the Google Cloud project has no billing account, see [§8](#8-honest-notes) |
 | 9. Destroy the playground | ✅ `Destroy complete! Resources: 4 destroyed` |
 
 ## 1. Commit
@@ -42,9 +42,8 @@ rewires the Makefile and updates the README - and
 [`4e8f0fc`](https://github.com/alinaytsk/OneTwoThree/commit/4e8f0fc) turns on the `cloud` block,
 so runs and state go to the workspace.
 
-The pull request itself still has to be opened, which is the first row of
-[§6](#7-what-is-left-and-why-only-you-can-do-it):
-<https://github.com/alinaytsk/OneTwoThree/compare/main...test-pr>
+It is merged: [pull request #2](https://github.com/alinaytsk/OneTwoThree/pull/2), and `main`
+now carries `infra/*.tf` and none of the three templates.
 
 The bootstrap and the Part 1 playground are already on `main`:
 [`3189d07`](https://github.com/alinaytsk/OneTwoThree/commit/3189d07).
@@ -307,16 +306,31 @@ deadline on it - the next apply.
 
 ## 7. What is left, and why only you can do it
 
+The workspace is fully set up: `google_client_secret` is a sensitive Terraform variable,
+`TFC_AWS_PROVIDER_AUTH` and `TFC_AWS_RUN_ROLE_ARN` are environment variables bound to the
+dynamic credential set, and a plan that passes no variables from the laptop at all comes back
+clean - run
+[`run-czVxSX3mppgNZCXV`](https://app.terraform.io/app/alinaytsk/meetings-dev/runs/run-czVxSX3mppgNZCXV),
+`No changes`, and no *undeclared variable* warnings left.
+
+**Merging #2 still produced no run, and the reason was not Terraform.** HCP Terraform tried to
+fetch the repository twice and failed both times before any plan could start:
+
+```
+illegal slug error: invalid symlink (".../clone/back/.serverless/requirements"
+ -> "/mnt/c/Users/User/AppData/Local/UnitedIncome/serverless-python-requirements/Cache/...")
+ has external target
+```
+
+`back/.serverless/` was Serverless Framework build output committed by accident, and one of its
+six files is a symlink into a cache directory on the laptop. HCP Terraform refuses to package a
+repository that contains a link pointing outside it, so the workspace could never see the
+configuration, whatever was merged.
+
 | Step | Why it needs you |
 |---|---|
-| `google_client_secret` in the workspace | A **sensitive** Terraform variable. Until it is set, a run started by the repository fails with *No value for required variable*: the remote plan that passed took the value from a local CLI run, which a VCS-driven run has no way to do. |
-| `TFC_AWS_*` in the right category | `TFC_AWS_PROVIDER_AUTH` and `TFC_AWS_RUN_ROLE_ARN` are set, but in the **terraform** category instead of **env**. The credentials work anyway; the price is two *Value for undeclared variable* warnings at the end of every plan. |
-| Open the pull request | <https://github.com/alinaytsk/OneTwoThree/compare/main...test-pr>. A push to a non-default branch starts no run; the pull request is what asks HCP Terraform for the plan. |
-| **Submission item 2** | Merge the pull request and screenshot the run that ends with *Apply finished*. |
-| Part 1 Step 8 (two clouds) | `gcloud auth application-default login`, a `google` provider and a `google_storage_bucket` in the playground. The playground is destroyed now, so this one starts with an apply again. |
-
-The state is already in HCP Terraform, so the workspace will not start from nothing. The order
-that matters now is **the secret variable first, the pull request second**.
+| Merge the fix | <https://github.com/alinaytsk/OneTwoThree/compare/main...fix-vcs-ingress>. Two commits: `back/.serverless/` stops being tracked, and `log_retention_days` goes from 7 to 14 days. The second one is deliberate - without a real infrastructure change the plan would say `No changes`, no apply would run, and there would be nothing to screenshot. |
+| **Submission item 2** | Confirm the apply in HCP Terraform (auto-apply is off) and screenshot *Apply finished*. The plan should read `0 to add, 3 to change, 0 to destroy`: the log groups of the parser, the report builder and the mailer. |
 
 ## 8. Honest notes
 
@@ -344,5 +358,15 @@ that matters now is **the secret variable first, the pull request second**.
   path to write back the same bytes, so the line stays; removing it and applying once would
   settle it for good. An earlier version of this file and of the ADR claimed Cognito masks the
   secret on read - it does not, and both are corrected.
+- **Part 1 Step 8, the second cloud, was written and then reverted.** The `google` provider, a
+  `google_storage_bucket` beside the S3 one and a `gcs_bucket` output were added to the
+  playground; `terraform validate` passed and the plan reached `4 to add` on the AWS side before
+  stopping at `Attempted to load application default credentials`. The step got no further than
+  that: `gcloud billing projects describe onetwotree-511013` returns `billingEnabled: False`, and
+  Cloud Storage refuses to create a bucket in a project with no billing account. An empty bucket
+  would have cost nothing - Cloud Storage bills stored gigabytes, and this one would have held
+  zero bytes for the ten minutes before `terraform destroy` - but Google wants a card on the
+  project either way, and no submission item depends on this step. The playground was put back as
+  it was.
 - **The ADR was drafted by the assistant and then read and corrected**, which is the point the
   lab makes about ADRs nobody reads.
