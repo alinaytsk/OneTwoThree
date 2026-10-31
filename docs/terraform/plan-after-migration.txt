@@ -1,0 +1,59 @@
+﻿data.archive_file.mailer: Reading...
+data.archive_file.mailer: Read complete after 0s [id=a9e4dca3b91283f3cce63f81134e2425abc00a32]
+data.aws_cloudformation_stack.backend: Reading...
+aws_cloudwatch_log_group.parser: Refreshing state... [id=/aws/lambda/meetings-agenda-parser]
+aws_cloudwatch_log_group.mailer: Refreshing state... [id=/aws/lambda/meetings-report-mailer]
+aws_iam_role.mailer: Refreshing state... [id=meetings-reports-MailerRole-RlXM57gcNbm8]
+aws_iam_role.parser: Refreshing state... [id=meetings-ai-ParserRole-wdLPVb6R8l4x]
+data.aws_caller_identity.current: Reading...
+data.aws_region.current: Reading...
+data.aws_partition.current: Reading...
+aws_budgets_budget.monthly: Refreshing state... [id=896138901201:meetings-monthly]
+aws_cognito_user_pool.main: Refreshing state... [id=us-east-1_pWxRPPCvQ]
+data.aws_region.current: Read complete after 0s [id=us-east-1]
+data.aws_partition.current: Read complete after 0s [id=aws]
+aws_iam_role.builder: Refreshing state... [id=meetings-reports-BuilderRole-Ov8I66IqDWWV]
+aws_sqs_queue.report_requests_dlq: Refreshing state... [id=https://sqs.us-east-1.amazonaws.com/896138901201/meetings-report-requests-dlq]
+data.aws_caller_identity.current: Read complete after 0s [id=896138901201]
+aws_cloudwatch_log_group.builder: Refreshing state... [id=/aws/lambda/meetings-report-builder]
+aws_sqs_queue.report_requests: Refreshing state... [id=https://sqs.us-east-1.amazonaws.com/896138901201/meetings-report-requests]
+aws_iam_role.scheduler: Refreshing state... [id=meetings-reports-SchedulerRole-b5WAwUDKCknN]
+data.aws_cloudformation_stack.backend: Read complete after 1s [id=arn:aws:cloudformation:us-east-1:896138901201:stack/meetings-backend/5af5d4e0-bdd5-11f1-ac14-12ce1366b8d9]
+aws_s3_bucket.reports: Refreshing state... [id=meetings-reports-896138901201]
+data.aws_secretsmanager_secret_version.db: Reading...
+aws_vpc_endpoint.s3: Refreshing state... [id=vpce-08685a21e83d00c3f]
+aws_cognito_user_pool_domain.main: Refreshing state... [id=demo-auth-896138901201]
+aws_cognito_identity_provider.google: Refreshing state... [id=us-east-1_pWxRPPCvQ:Google]
+aws_iam_role_policy.parser_bedrock: Refreshing state... [id=meetings-ai-ParserRole-wdLPVb6R8l4x:invoke-claude-on-bedrock]
+aws_lambda_function.parser: Refreshing state... [id=meetings-agenda-parser]
+aws_iam_role_policy_attachment.parser_basic: Refreshing state... [id=meetings-ai-ParserRole-wdLPVb6R8l4x/arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole]
+data.aws_secretsmanager_secret_version.db: Read complete after 0s [id=arn:aws:secretsmanager:us-east-1:896138901201:secret:DbSecret-B5rruTlszyAV-l5scQM|AWSCURRENT]
+aws_iam_role_policy.parser_inference_profile[0]: Refreshing state... [id=meetings-ai-ParserRole-wdLPVb6R8l4x:invoke-claude-through-an-inference-profile]
+aws_iam_role_policy.mailer_send_mail: Refreshing state... [id=meetings-reports-MailerRole-RlXM57gcNbm8:send-mail]
+aws_lambda_function.mailer: Refreshing state... [id=meetings-report-mailer]
+aws_iam_role_policy_attachment.mailer_basic: Refreshing state... [id=meetings-reports-MailerRole-RlXM57gcNbm8/arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole]
+aws_iam_role_policy.mailer_read_reports: Refreshing state... [id=meetings-reports-MailerRole-RlXM57gcNbm8:read-reports]
+aws_cognito_user_pool_client.web: Refreshing state... [id=215c7uvolh5lf2g095a32ikneo]
+aws_iam_role_policy.builder_write_reports: Refreshing state... [id=meetings-reports-BuilderRole-Ov8I66IqDWWV:write-reports]
+aws_iam_role_policy.builder_consume_report_requests: Refreshing state... [id=meetings-reports-BuilderRole-Ov8I66IqDWWV:consume-report-requests]
+aws_iam_role_policy_attachment.builder_vpc_access: Refreshing state... [id=meetings-reports-BuilderRole-Ov8I66IqDWWV/arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole]
+aws_scheduler_schedule.weekly_report: Refreshing state... [id=default/meetings-weekly-report]
+aws_iam_role_policy.scheduler_send: Refreshing state... [id=meetings-reports-SchedulerRole-b5WAwUDKCknN:send-report-request]
+aws_lambda_function.builder: Refreshing state... [id=meetings-report-builder]
+aws_cognito_managed_login_branding.main: Refreshing state...
+aws_lambda_permission.parser_url: Refreshing state... [id=FunctionURLAllowPublicAccess]
+aws_lambda_function_url.parser: Refreshing state... [id=meetings-agenda-parser]
+aws_lambda_permission.parser_invoke: Refreshing state... [id=AllowInvokeViaFunctionUrl]
+aws_lambda_permission.mailer_s3: Refreshing state... [id=AllowExecutionFromS3Bucket]
+aws_lambda_event_source_mapping.builder: Refreshing state... [id=8be0e833-fee2-46c4-84c6-2f7ea547b84b]
+aws_s3_bucket_ownership_controls.reports: Refreshing state... [id=meetings-reports-896138901201]
+aws_s3_bucket_policy.reports: Refreshing state... [id=meetings-reports-896138901201]
+aws_s3_bucket_server_side_encryption_configuration.reports: Refreshing state... [id=meetings-reports-896138901201]
+aws_s3_bucket_public_access_block.reports: Refreshing state... [id=meetings-reports-896138901201]
+aws_s3_bucket_notification.reports: Refreshing state... [id=meetings-reports-896138901201]
+aws_s3_bucket_lifecycle_configuration.reports: Refreshing state... [id=meetings-reports-896138901201]
+
+No changes. Your infrastructure matches the configuration.
+
+Terraform has compared your real infrastructure against your configuration
+and found no differences, so no changes are needed.

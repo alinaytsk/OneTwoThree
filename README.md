@@ -56,10 +56,18 @@ front/            # Vite + React + TypeScript + Tailwind + shadcn/ui
     lib/parser.ts # the agenda parser's own URL (VITE_PARSER_URL) and its error codes
     lib/agenda.ts # the agenda draft: values plus which fields are still the model's suggestion
   nginx.conf      # serves the SPA, proxies /api to backend
-infra/            # CloudFormation: cognito, auth, backend-ecr, backend (Lambda + Aurora), frontend (S3 + CloudFront),
-                  # reports.yml (S3 + SQS + Scheduler + 2 Lambdas + SES),
-                  # ai.yml (agenda parser Lambda outside the VPC + its URL + Budgets alarm)
-  lambda/         # report_mailer.py — the mailer Lambda, deployed as a zip, not in the backend image
+infra/            # One Terraform root module + the CloudFormation that has not moved
+  versions.tf     # providers, the HCP Terraform backend
+  variables.tf    # project_name, image_uri, google_client_secret (sensitive), ...
+  data.tf         # account id, region, outputs of the backend stack, the database secret
+  auth.tf         # Cognito pool, Google provider, app client, managed login   (was auth.yaml)
+  reports.tf      # bucket, queues, builder, schedule, mailer, SES identity    (was reports.yml)
+  ai.tf           # agenda parser, its function URL, the budget                (was ai.yml)
+  outputs.tf      # everything the Makefile and the frontend build read
+  cognito.yaml backend-ecr.yaml backend.yaml frontend.yaml   # still CloudFormation
+  lambda/         # report_mailer.py — zipped and deployed by Terraform
+tf-bootstrap/     # the IAM OIDC provider and the role HCP Terraform assumes (local state)
+tf-playground/    # the Part 1 exercise module; disposable
 ```
 
 ## API
@@ -155,7 +163,12 @@ Config lives in `back/pyproject.toml` (`[tool.ruff]`), `front/eslint.config.js` 
 
 ## Deploy to AWS (backend on Lambda + Aurora Serverless, frontend on CloudFront)
 
-Everything is deployed to **us-east-1**. CloudFront accepts custom-domain certificates only from that region. Infrastructure is CloudFormation in `infra/`:
+Everything is deployed to **us-east-1**. CloudFront accepts custom-domain certificates only from that region.
+
+Infrastructure lives in `infra/`, in two halves. **Terraform** owns the Cognito pool from Lab 4,
+the weekly report and the agenda parser; its state is in HCP Terraform and applies happen there
+after a merge, never from a laptop (see [docs/adr/0007-terraform.md](docs/adr/0007-terraform.md)).
+**CloudFormation** still owns the rest:
 
 - `infra/cognito.yaml`: Cognito user pool (email + password, self sign-up with email code), public app client, Hosted UI domain, and Google as an identity provider when `GOOGLE_CLIENT_ID` is set.
 - `infra/backend-ecr.yaml`: ECR repository for the backend's Lambda container image (`back/Dockerfile.lambda`).
@@ -215,9 +228,9 @@ Other targets: `make aws-backend-outputs`, `aws-backend-status`, `aws-backend-lo
 
 `front/.env.production.local` is deliberately not in git: Vite's `.env*.local` files hold
 machine-specific build values. Nothing is lost by that, because `aws-frontend-publish` passes the
-same values on its own, read from the live stack outputs. To rebuild the frontend against the
-`demo-auth` pool from `infra/auth.yaml` instead of the default one, run
-`make aws-frontend-publish COGNITO_STACK=demo-auth`.
+same values on its own, read from the live stack outputs. The Lab 4 pool (`demo-users`, with
+Google sign-in) is Terraform's now and lives in `infra/auth.tf`; `terraform output
+auth_user_pool_id` and `auth_user_pool_client_id` give the values to build against it.
 
 ### Custom domain for the frontend (optional)
 
@@ -237,6 +250,40 @@ make aws-frontend-https-check # 3. curl https://onetwothree.dobosevych.com/
 **Cost.** There is no load balancer, NAT gateway or public IPv4 address. Lambda and function URLs fit in the always-free tier for a small app. CloudFront runs on the flat-rate Free plan, which costs $0 with no overage charges and also covers its WAF web ACL (a per-IP rate limit). Requests that WAF blocks don't count toward the plan's allowance. Aurora Serverless v2 has no free tier. With `DbMinCapacity=0` it pauses after 5 idle minutes, and then you pay only for storage (about $0.10/GB-month). While active it costs about $0.12 per ACU-hour. The first request after a pause waits about 15 seconds while Aurora resumes. The DB credentials secret costs $0.40/month. Run `make aws-destroy` when you are done. It keeps a final Aurora snapshot.
 
 On AWS the backend reads `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` and `DB_PASSWORD` instead of `DATABASE_URL`. The password is generated in Secrets Manager and resolved into the function's environment at deploy time, so the VPC needs no internet access. `DB_NULL_POOL=true` closes connections after each request, because idle connections from warm Lambdas would stop Aurora from pausing. Migrations do not run on cold start. `make aws-backend-migrate` runs them, and every `aws-backend-deploy` calls it.
+
+## Changing the infrastructure
+
+`infra/` is one Terraform root module. The state is in HCP Terraform (workspace `meetings-dev`,
+working directory `infra`), which also runs the applies: a pull request gets a plan as a check,
+and a merge to `main` applies it. Nobody runs `terraform apply` from a laptop, and the Makefile
+has no target that would.
+
+```bash
+make infra-plan      # read what would change. This is the review
+make infra-fmt       # terraform fmt + validate, before every commit
+make infra-output    # bucket, queues, function names, the parser URL
+```
+
+| Who owns what | Where |
+| --- | --- |
+| Cognito pool from Lab 4, weekly report, agenda parser | Terraform, `infra/*.tf` |
+| VPC, Aurora, API Lambda, ECR, the app's Cognito pool, CloudFront site | CloudFormation, `infra/*.yaml` |
+| The IAM role HCP Terraform assumes | Terraform, `tf-bootstrap/`, local state, applied by hand |
+
+The two halves meet in `infra/data.tf`, which reads the backend stack's outputs with the
+`aws_cloudformation_stack` data source, so the report builder gets the VPC, the subnets and the
+database endpoint without anyone copying them between files.
+
+**Credentials.** HCP Terraform has no AWS keys. Each run signs an OIDC token, AWS trusts
+`app.terraform.io` through an IAM OIDC provider, and the run exchanges the token for temporary
+credentials of one role - the same mechanism GitHub Actions uses. The role is
+`terraform-cloud-oidc-role`, its trust is pinned to this one workspace, and it carries
+`PowerUserAccess` plus 16 IAM actions limited to `role/meetings-*` and `role/demo-*`.
+
+**Secrets.** `terraform.tfvars` holds non-secret values only. The Google client secret is a
+sensitive variable in the workspace. Note that the database password now lands in the state file
+(CloudFormation never stored it), which is why the state lives in HCP Terraform and
+`*.tfstate*` is in `.gitignore` in every Terraform folder.
 
 ## Paste an agenda (Claude on Bedrock)
 
@@ -270,11 +317,10 @@ form, a person checks it, and the person saves it.
 | --- | --- |
 | `make llm-hello` | One Bedrock call through the Anthropic Messages API: answer, `stop_reason`, usage. Run this first - it is where missing model access shows up. |
 | `make parse TEXT="..."` | Runs `parse_agenda` locally and prints the JSON and the usage. |
-| `make aws-ai-deploy` | Builds and pushes the image, then deploys `infra/ai.yml` (parser, its URL, the budget). |
+| `make infra-plan` | Plans `infra/`. The parser, its URL and the budget are `infra/ai.tf` now; applies happen in HCP Terraform after a merge. |
 | `make parse-live TEXT="..."` | Signs in as `TEST_EMAIL` and parses through the **deployed** Lambda: real tokens, latency and cost. |
 | `make aws-ai-logs` | Tails the parser's log group - one JSON line per parse. |
-| `make aws-ai-outputs` | Parser URL, function name, model, budget. |
-| `make aws-ai-destroy` | Deletes the stack and its budget alarm. |
+| `make infra-output` | Parser URL, function name, model, budget, and everything else Terraform knows. |
 
 **Model access.** Anthropic models on Bedrock need enabling once per account: Bedrock ->
 us-east-1 -> Model catalog -> the model -> request access (a use-case form, then the Marketplace
@@ -361,28 +407,25 @@ make aws-backend-stack KEEP_IMAGE=1    # adds the private route table + network 
 Then set the mail addresses in `.env` (`MAIL_FROM`, `MAIL_TO`, optionally `SES_DOMAIN`) and:
 
 ```bash
-make aws-reports-deploy                # stack, then the mailer handler zip
+make infra-plan                        # read the plan; HCP Terraform applies it after a merge
 make report-now WEEK=2026-W40          # build one week immediately (FORCE=1 to overwrite)
 make aws-reports-status                # schedule, queue depth, what is in the bucket
 make aws-reports-logs                  # tail the builder (FN=mailer for the other one)
 make aws-reports-get WEEK=2026-W40     # print a built report
-make aws-reports-destroy               # empty the bucket and delete the stack
 ```
 
 Three things are worth knowing about this deploy:
 
-- **The deploy builds the image.** The builder runs the backend image, so that image has to
-  contain `app/reports` — `aws-reports-deploy` therefore depends on `aws-backend-push` and deploys
-  exactly the tag it just pushed. Pointing it at the image the API happens to be running is not
-  enough: if that image predates the feature, the stack deploys green and every run then dies on
-  *No module named 'app.reports'*. `aws-reports-stack` on its own checks the tag is in ECR first,
-  so a missing image fails in a second instead of after a stack rollback. `IMAGE_URI=<uri>` names
-  an image explicitly, `KEEP_IMAGE=1` keeps the one the stack already has.
-- **The mailer code is uploaded separately.** `infra/reports.yml` carries only a placeholder for
-  it, because inline CloudFormation code is capped at 4 KB and the handler is easier to review as
-  a file. `make aws-reports-mailer-code` zips `infra/lambda/report_mailer.py` and uploads it;
-  `aws-reports-deploy` runs both steps. CloudFormation restores the placeholder on every stack
-  update, so re-run that target (or the whole `aws-reports-deploy`) after changing the stack.
+- **The image is a Terraform variable.** The builder runs the backend image, so that image has
+  to contain `app/reports`. `make aws-backend-push` builds and pushes it; `image_uri` in
+  `infra/terraform.tfvars` names the tag the builder and the parser run. Point it at an image
+  that predates the feature and the apply is green while every run dies on *No module named
+  'app.reports'*, so the tag is changed in a pull request like any other infrastructure change.
+- **The mailer code is deployed by Terraform.** `infra/reports.tf` zips
+  `infra/lambda/report_mailer.py` with the `archive_file` data source and gives the function its
+  `source_code_hash`, so the deployed code is whatever is in the repository. The CloudFormation
+  template could only carry a 4 KB placeholder, which had to be overwritten by a separate
+  `make` target after every stack update; that target is gone.
 - **SES verification is manual.** With `SES_DOMAIN` set, the stack creates the domain identity;
   `make aws-reports-dkim` then prints the three `CNAME` records to publish in that domain's DNS
   by hand. Until they resolve, the identity stays unverified and SES refuses to send. A new
