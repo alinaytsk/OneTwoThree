@@ -1,0 +1,5 @@
+"events","later_than_60s","pct_later_than_60s","later_than_an_hour","worst_delay_seconds","average_delay_seconds","p99_delay_seconds"
+"3030197","60824","2.007","0","600","7.63","326.35413550146194"
+
+sql/07-late-events.sql
+  data scanned: 1202.29 MB   run time: 1.95 s   id: ae8cd360-4cc6-48fb-ad63-de93bf954630

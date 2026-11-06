@@ -1,0 +1,5 @@
+data/
+results/*.csv
+.venv/
+__pycache__/
+cloud/alerts.zip

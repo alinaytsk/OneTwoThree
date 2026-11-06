@@ -1,0 +1,16 @@
+"paymentMethod","device","payments","failed","failure_rate_pct","success_rate_pct","in_flight_pct"
+"qr","android","6675","448","6.71","93.29","0.0"
+"apple_pay","android","83677","5130","6.13","93.87","0.0"
+"google_pay","web","59996","3645","6.08","93.92","0.0"
+"card","android","183332","11079","6.04","93.96","0.0"
+"apple_pay","ios","83164","5025","6.04","93.96","0.0"
+"card","web","183435","11020","6.01","93.99","0.0"
+"google_pay","ios","59761","3590","6.01","93.99","0.0"
+"qr","web","6669","400","6.0","94.0","0.0"
+"google_pay","android","59450","3563","5.99","94.01","0.0"
+"apple_pay","web","83505","4966","5.95","94.05","0.0"
+"card","ios","183541","10912","5.95","94.05","0.0"
+"qr","ios","6795","402","5.92","94.08","0.0"
+
+sql/parquet/05-failure-rate.sql
+  data scanned: 0.64 MB   run time: 1.01 s   id: af4d0b1d-99c1-44ac-ae79-cc9f55f31f5c

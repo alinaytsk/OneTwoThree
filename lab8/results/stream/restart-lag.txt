@@ -1,0 +1,11 @@
+GROUP        restart-test
+COORDINATOR  0
+STATE        Empty
+BALANCER     
+MEMBERS      0
+TOTAL-LAG    0
+
+TOPIC     PARTITION  CURRENT-OFFSET  LOG-START-OFFSET  LOG-END-OFFSET  LAG   MEMBER-ID  CLIENT-ID  HOST
+payments  0          6634            0                 6634            0                           
+payments  1          6371            0                 6371            0                           
+payments  2          6995            0                 6995            0                           

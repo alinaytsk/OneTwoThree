@@ -1,0 +1,8 @@
+"paymentMethod","terminal_events","failed","failure_rate_pct","first_event","last_event"
+"google_pay","286","105","36.7","2026-10-01T00:02:09Z","2026-10-01T06:07:16Z"
+"card","927","328","35.4","2026-10-01T00:00:14Z","2026-10-01T06:07:23Z"
+"apple_pay","407","143","35.1","2026-10-01T00:00:17Z","2026-10-01T06:07:15Z"
+"qr","41","14","34.1","2026-10-01T00:16:43Z","2026-10-01T06:07:20Z"
+
+sql/10-stream-query.sql
+  data scanned: 2.00 MB   run time: 0.90 s   id: 8296f7d1-d6a1-4023-a8e4-1ef2d41492da

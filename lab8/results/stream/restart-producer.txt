@@ -1,0 +1,23 @@
+20000 events of 6602 payments from 2026-10-01
+replaying 9.3 h of arrivals in ~1.8 min (304x real time, ~60 payments/s)
+  sent 1000/20000
+  sent 2000/20000
+  sent 3000/20000
+  sent 4000/20000
+  sent 5000/20000
+  sent 6000/20000
+  sent 7000/20000
+  sent 8000/20000
+  sent 9000/20000
+  sent 10000/20000
+  sent 11000/20000
+  sent 12000/20000
+  sent 13000/20000
+  sent 14000/20000
+  sent 15000/20000
+  sent 16000/20000
+  sent 17000/20000
+  sent 18000/20000
+  sent 19000/20000
+  sent 20000/20000
+sent 20000 events in 110.0 s (181.8 events/s)

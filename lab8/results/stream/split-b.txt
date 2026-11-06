@@ -1,0 +1,620 @@
+group=split-test  lateness=120s  window=60s  (ctrl-c to stop)
+[01:40] card   0.0% (0/1) | google_pay   0.0% (0/1)
+[01:41] apple_pay   0.0% (0/1) | google_pay   0.0% (0/1)
+[01:42] card   0.0% (0/1)
+  ALERT  01:44  card: failure rate 33.3% (1 of 3) is above 10%
+[01:44] card  33.3% (1/3)
+[01:45] google_pay   0.0% (0/1)
+[01:46] card   0.0% (0/1)
+  ALERT  01:47  card: failure rate 33.3% (1 of 3) is above 10%
+[01:47] apple_pay   0.0% (0/2) | card  33.3% (1/3) | google_pay   0.0% (0/1)
+[01:48] apple_pay   0.0% (0/1) | card   0.0% (0/4)
+[01:49] card   0.0% (0/1) | google_pay   0.0% (0/1)
+[01:50] card   0.0% (0/1) | google_pay   0.0% (0/1)
+[01:51] apple_pay   0.0% (0/1) | card   0.0% (0/1) | google_pay   0.0% (0/1)
+[01:52] google_pay   0.0% (0/1)
+[01:53] apple_pay   0.0% (0/1) | card   0.0% (0/3) | google_pay   0.0% (0/2)
+[01:54] card   0.0% (0/1) | google_pay   0.0% (0/1)
+[01:55] card   0.0% (0/1)
+[01:56] card   0.0% (0/1)
+[01:57] apple_pay   0.0% (0/1) | card   0.0% (0/1)
+[01:58] card   0.0% (0/1)
+  ALERT  01:59  card: failure rate 33.3% (1 of 3) is above 10%
+[01:59] apple_pay   0.0% (0/1) | card  33.3% (1/3)
+[02:00] card   0.0% (0/1)
+[02:01] apple_pay   0.0% (0/1) | card   0.0% (0/2)
+[02:02] card   0.0% (0/1)
+[02:03] card   0.0% (0/1)
+[02:04] google_pay   0.0% (0/1)
+[02:05] apple_pay   0.0% (0/1)
+[02:06] card   0.0% (0/1)
+[02:07] card   0.0% (0/2)
+[02:11] apple_pay   0.0% (0/1) | card   0.0% (0/2)
+[02:12] apple_pay   0.0% (0/2) | card   0.0% (0/1) | google_pay   0.0% (0/1)
+[02:13] card   0.0% (0/1)
+[02:14] apple_pay   0.0% (0/1) | card   0.0% (0/1)
+[02:15] card   0.0% (0/2) | qr   0.0% (0/1)
+[02:16] card   0.0% (0/2)
+[02:17] card   0.0% (0/1) | google_pay   0.0% (0/1)
+[02:18] google_pay   0.0% (0/1)
+[02:19] apple_pay   0.0% (0/1) | card   0.0% (0/2)
+[02:20] card   0.0% (0/2)
+[02:21] apple_pay   0.0% (0/1) | card   0.0% (0/2) | google_pay   0.0% (0/1)
+[02:22] apple_pay   0.0% (0/1) | card   0.0% (0/1)
+[02:23] card   0.0% (0/1)
+[02:24] apple_pay   0.0% (0/1)
+[02:25] card   0.0% (0/1)
+[02:26] apple_pay   0.0% (0/1) | card   0.0% (0/4)
+[02:27] apple_pay   0.0% (0/1) | card   0.0% (0/2)
+  ALERT  02:29  google_pay: failure rate 50.0% (1 of 2) is above 10%
+[02:29] google_pay  50.0% (1/2)
+  ALERT  02:30  card: failure rate 100.0% (1 of 1) is above 10%
+[02:30] apple_pay   0.0% (0/2) | card 100.0% (1/1)
+[02:32] google_pay   0.0% (0/1)
+[02:33] apple_pay   0.0% (0/1) | card   0.0% (0/1)
+[02:34] apple_pay   0.0% (0/2) | card   0.0% (0/2)
+[02:35] card   0.0% (0/3) | google_pay   0.0% (0/1)
+[02:36] card   0.0% (0/1) | google_pay   0.0% (0/1)
+[02:37] card   0.0% (0/1)
+[02:38] card   0.0% (0/2) | google_pay   0.0% (0/1)
+[02:39] card   0.0% (0/5)
+[02:40] apple_pay   0.0% (0/1) | card   0.0% (0/2) | google_pay   0.0% (0/1)
+  ALERT  02:41  apple_pay: failure rate 100.0% (1 of 1) is above 10%
+[02:41] apple_pay 100.0% (1/1) | card   0.0% (0/2)
+[02:42] apple_pay   0.0% (0/2) | card   0.0% (0/1)
+[02:43] card   0.0% (0/1) | google_pay   0.0% (0/1)
+[02:44] card   0.0% (0/3) | google_pay   0.0% (0/1)
+  ALERT  02:46  apple_pay: failure rate 100.0% (1 of 1) is above 10%
+[02:46] apple_pay 100.0% (1/1) | card   0.0% (0/1)
+  ALERT  02:47  card: failure rate 66.7% (2 of 3) is above 10%
+[02:47] apple_pay   0.0% (0/1) | card  66.7% (2/3)
+[02:48] apple_pay   0.0% (0/1) | card   0.0% (0/1)
+[02:49] card   0.0% (0/1)
+  ALERT  02:50  card: failure rate 50.0% (1 of 2) is above 10%
+[02:50] apple_pay   0.0% (0/2) | card  50.0% (1/2)
+[02:51] card   0.0% (0/1)
+[02:52] card   0.0% (0/2)
+[02:53] apple_pay   0.0% (0/1) | card   0.0% (0/1)
+[02:54] apple_pay   0.0% (0/1) | card   0.0% (0/2)
+[02:55] card   0.0% (0/3)
+[02:56] card   0.0% (0/1)
+[02:58] apple_pay   0.0% (0/1) | card   0.0% (0/1) | qr   0.0% (0/1)
+[02:59] apple_pay   0.0% (0/1) | card   0.0% (0/2)
+[03:00] google_pay   0.0% (0/1)
+[03:01] apple_pay   0.0% (0/3) | card   0.0% (0/1)
+[03:02] apple_pay   0.0% (0/2) | card   0.0% (0/1) | google_pay   0.0% (0/2)
+[03:03] apple_pay   0.0% (0/5) | qr   0.0% (0/1)
+  ALERT  03:04  apple_pay: failure rate 50.0% (1 of 2) is above 10%
+[03:04] apple_pay  50.0% (1/2) | card   0.0% (0/2)
+[03:05] apple_pay   0.0% (0/1)
+  ALERT  03:08  apple_pay: failure rate 50.0% (1 of 2) is above 10%
+  ALERT  03:08  card: failure rate 25.0% (1 of 4) is above 10%
+[03:08] apple_pay  50.0% (1/2) | card  25.0% (1/4) | google_pay   0.0% (0/2)
+[03:09] apple_pay   0.0% (0/1) | card   0.0% (0/1)
+  ALERT  03:10  apple_pay: failure rate 100.0% (1 of 1) is above 10%
+[03:10] apple_pay 100.0% (1/1) | card   0.0% (0/2) | qr   0.0% (0/1)
+[03:11] apple_pay   0.0% (0/1) | google_pay   0.0% (0/1)
+[03:12] apple_pay   0.0% (0/1)
+  ALERT  03:13  card: failure rate 50.0% (1 of 2) is above 10%
+[03:13] card  50.0% (1/2) | google_pay   0.0% (0/2)
+[03:14] apple_pay   0.0% (0/1) | card   0.0% (0/1) | qr   0.0% (0/1)
+[03:15] card   0.0% (0/2) | google_pay   0.0% (0/1)
+[03:16] card   0.0% (0/1) | google_pay   0.0% (0/1)
+[03:17] apple_pay   0.0% (0/3) | card   0.0% (0/2) | google_pay   0.0% (0/1)
+[03:19] card   0.0% (0/2) | google_pay   0.0% (0/1)
+  ALERT  03:20  google_pay: failure rate 50.0% (1 of 2) is above 10%
+[03:20] apple_pay   0.0% (0/1) | card   0.0% (0/2) | google_pay  50.0% (1/2)
+[03:21] google_pay   0.0% (0/1)
+[03:22] apple_pay   0.0% (0/1) | card   0.0% (0/1) | google_pay   0.0% (0/1)
+[03:23] apple_pay   0.0% (0/1) | card   0.0% (0/2)
+[03:24] google_pay   0.0% (0/1)
+[03:26] apple_pay   0.0% (0/1)
+  ALERT  03:27  card: failure rate 25.0% (1 of 4) is above 10%
+[03:27] apple_pay   0.0% (0/1) | card  25.0% (1/4) | google_pay   0.0% (0/1)
+[03:28] apple_pay   0.0% (0/2) | card   0.0% (0/1)
+[03:29] google_pay   0.0% (0/2)
+[03:30] card   0.0% (0/2)
+  ALERT  03:31  apple_pay: failure rate 50.0% (1 of 2) is above 10%
+  ALERT  03:31  card: failure rate 50.0% (1 of 2) is above 10%
+[03:31] apple_pay  50.0% (1/2) | card  50.0% (1/2)
+[03:32] card   0.0% (0/4)
+  ALERT  03:33  card: failure rate 50.0% (1 of 2) is above 10%
+[03:33] card  50.0% (1/2)
+[03:34] apple_pay   0.0% (0/1) | card   0.0% (0/1)
+  ALERT  03:36  card: failure rate 33.3% (1 of 3) is above 10%
+[03:36] card  33.3% (1/3) | google_pay   0.0% (0/1)
+[03:37] card   0.0% (0/2) | google_pay   0.0% (0/3)
+[03:38] apple_pay   0.0% (0/1) | card   0.0% (0/2)
+[03:39] apple_pay   0.0% (0/1) | card   0.0% (0/3)
+[03:40] google_pay   0.0% (0/1)
+[03:42] card   0.0% (0/1)
+[03:43] card   0.0% (0/4)
+[03:44] card   0.0% (0/3) | google_pay   0.0% (0/2)
+  ALERT  03:45  card: failure rate 50.0% (1 of 2) is above 10%
+[03:45] apple_pay   0.0% (0/1) | card  50.0% (1/2)
+[03:46] card   0.0% (0/2)
+[03:47] card   0.0% (0/1)
+[03:48] card   0.0% (0/3) | google_pay   0.0% (0/1)
+[03:49] apple_pay   0.0% (0/2) | card   0.0% (0/3)
+  ALERT  03:51  card: failure rate 50.0% (1 of 2) is above 10%
+[03:51] card  50.0% (1/2)
+[03:53] apple_pay   0.0% (0/1) | card   0.0% (0/2)
+[03:54] card   0.0% (0/1)
+[03:55] apple_pay   0.0% (0/2)
+[03:56] apple_pay   0.0% (0/1)
+[03:58] apple_pay   0.0% (0/2) | card   0.0% (0/1) | google_pay   0.0% (0/2)
+[03:59] card   0.0% (0/2) | google_pay   0.0% (0/1)
+[04:00] google_pay   0.0% (0/1)
+[04:01] apple_pay   0.0% (0/2) | card   0.0% (0/1) | google_pay   0.0% (0/1)
+[04:02] card   0.0% (0/3) | google_pay   0.0% (0/1)
+  ALERT  04:03  google_pay: failure rate 100.0% (1 of 1) is above 10%
+[04:03] card   0.0% (0/2) | google_pay 100.0% (1/1)
+[04:04] apple_pay   0.0% (0/1) | card   0.0% (0/1)
+[04:05] card   0.0% (0/3) | google_pay   0.0% (0/2)
+[04:06] apple_pay   0.0% (0/1) | card   0.0% (0/1) | google_pay   0.0% (0/3)
+[04:07] card   0.0% (0/4) | google_pay   0.0% (0/1) | qr   0.0% (0/1)
+[04:09] apple_pay   0.0% (0/1) | card   0.0% (0/1)
+[04:10] card   0.0% (0/4)
+[04:11] card   0.0% (0/3)
+  ALERT  04:12  apple_pay: failure rate 33.3% (1 of 3) is above 10%
+  ALERT  04:12  google_pay: failure rate 100.0% (1 of 1) is above 10%
+[04:12] apple_pay  33.3% (1/3) | card   0.0% (0/1) | google_pay 100.0% (1/1)
+[04:13] card   0.0% (0/1)
+  ALERT  04:14  card: failure rate 20.0% (1 of 5) is above 10%
+[04:14] card  20.0% (1/5)
+[04:15] google_pay   0.0% (0/2)
+[04:17] card   0.0% (0/1) | google_pay   0.0% (0/1)
+[04:18] card   0.0% (0/1)
+[04:19] apple_pay   0.0% (0/2)
+[04:20] card   0.0% (0/1)
+[04:21] card   0.0% (0/1) | google_pay   0.0% (0/2)
+[04:22] card   0.0% (0/2)
+[04:23] apple_pay   0.0% (0/1) | card   0.0% (0/2) | google_pay   0.0% (0/1)
+[04:24] apple_pay   0.0% (0/1) | card   0.0% (0/2)
+[04:25] card   0.0% (0/2)
+[04:26] apple_pay   0.0% (0/1) | card   0.0% (0/2)
+[04:27] card   0.0% (0/1) | google_pay   0.0% (0/1)
+[04:28] google_pay   0.0% (0/1)
+[04:29] card   0.0% (0/1)
+[04:30] apple_pay   0.0% (0/1) | card   0.0% (0/1)
+  ALERT  04:31  apple_pay: failure rate 100.0% (1 of 1) is above 10%
+  ALERT  04:31  card: failure rate 20.0% (1 of 5) is above 10%
+[04:31] apple_pay 100.0% (1/1) | card  20.0% (1/5)
+[04:32] google_pay   0.0% (0/1)
+[04:33] card   0.0% (0/1)
+[04:34] card   0.0% (0/1)
+[04:35] card   0.0% (0/1) | google_pay   0.0% (0/1)
+[04:36] apple_pay   0.0% (0/1)
+  ALERT  04:37  apple_pay: failure rate 100.0% (1 of 1) is above 10%
+[04:37] apple_pay 100.0% (1/1)
+[04:39] card   0.0% (0/1)
+[04:40] apple_pay   0.0% (0/2) | card   0.0% (0/3)
+  ALERT  04:41  card: failure rate 100.0% (1 of 1) is above 10%
+  ALERT  04:41  google_pay: failure rate 33.3% (1 of 3) is above 10%
+[04:41] apple_pay   0.0% (0/1) | card 100.0% (1/1) | google_pay  33.3% (1/3)
+[04:42] apple_pay   0.0% (0/1) | google_pay   0.0% (0/1)
+[04:43] apple_pay   0.0% (0/1)
+[04:44] apple_pay   0.0% (0/1) | card   0.0% (0/1)
+[04:45] apple_pay   0.0% (0/1) | card   0.0% (0/1)
+[04:46] card   0.0% (0/1) | google_pay   0.0% (0/1)
+[04:47] apple_pay   0.0% (0/1) | card   0.0% (0/1)
+[04:48] card   0.0% (0/2)
+[04:49] card   0.0% (0/1)
+[04:50] apple_pay   0.0% (0/1)
+[04:51] apple_pay   0.0% (0/1)
+[04:52] card   0.0% (0/2)
+[04:53] apple_pay   0.0% (0/1) | card   0.0% (0/1)
+[04:54] apple_pay   0.0% (0/1) | google_pay   0.0% (0/1)
+  ALERT  04:55  card: failure rate 100.0% (1 of 1) is above 10%
+[04:55] apple_pay   0.0% (0/1) | card 100.0% (1/1) | google_pay   0.0% (0/1)
+[04:56] google_pay   0.0% (0/1)
+[04:57] apple_pay   0.0% (0/1) | card   0.0% (0/2)
+[04:58] card   0.0% (0/1)
+[04:59] apple_pay   0.0% (0/1)
+[05:00] apple_pay   0.0% (0/1) | google_pay   0.0% (0/1)
+[05:01] apple_pay   0.0% (0/1) | card   0.0% (0/5) | google_pay   0.0% (0/1)
+[05:02] card   0.0% (0/6)
+[05:03] apple_pay   0.0% (0/4) | card   0.0% (0/2)
+  ALERT  05:04  card: failure rate 33.3% (1 of 3) is above 10%
+[05:04] apple_pay   0.0% (0/2) | card  33.3% (1/3) | google_pay   0.0% (0/1)
+  ALERT  05:05  apple_pay: failure rate 50.0% (1 of 2) is above 10%
+[05:05] apple_pay  50.0% (1/2) | card   0.0% (0/2) | google_pay   0.0% (0/2)
+  ALERT  05:06  card: failure rate 20.0% (1 of 5) is above 10%
+[05:06] card  20.0% (1/5) | google_pay   0.0% (0/1)
+[05:07] apple_pay   0.0% (0/1) | card   0.0% (0/2)
+[05:08] card   0.0% (0/3) | google_pay   0.0% (0/2)
+  ALERT  05:09  google_pay: failure rate 100.0% (1 of 1) is above 10%
+[05:09] card   0.0% (0/3) | google_pay 100.0% (1/1) | qr   0.0% (0/1)
+[05:10] apple_pay   0.0% (0/1) | card   0.0% (0/1) | google_pay   0.0% (0/2) | qr   0.0% (0/1)
+[05:11] apple_pay   0.0% (0/1) | card   0.0% (0/1) | google_pay   0.0% (0/1)
+  ALERT  05:12  google_pay: failure rate 50.0% (1 of 2) is above 10%
+[05:12] apple_pay   0.0% (0/3) | card   0.0% (0/5) | google_pay  50.0% (1/2)
+[05:13] card   0.0% (0/3) | google_pay   0.0% (0/1)
+[05:14] card   0.0% (0/2) | google_pay   0.0% (0/1)
+[05:15] card   0.0% (0/1)
+[05:16] apple_pay   0.0% (0/3) | card   0.0% (0/1) | google_pay   0.0% (0/1)
+[05:17] apple_pay   0.0% (0/1) | card   0.0% (0/2) | google_pay   0.0% (0/1)
+  ALERT  05:18  apple_pay: failure rate 100.0% (1 of 1) is above 10%
+[05:18] apple_pay 100.0% (1/1) | card   0.0% (0/4)
+[05:19] card   0.0% (0/2)
+[05:20] apple_pay   0.0% (0/1) | card   0.0% (0/2) | google_pay   0.0% (0/3) | qr   0.0% (0/1)
+[05:21] card   0.0% (0/3) | google_pay   0.0% (0/1)
+[05:22] apple_pay   0.0% (0/2) | card   0.0% (0/2) | google_pay   0.0% (0/1)
+  ALERT  05:23  google_pay: failure rate 50.0% (1 of 2) is above 10%
+[05:23] apple_pay   0.0% (0/3) | google_pay  50.0% (1/2)
+[05:24] apple_pay   0.0% (0/2) | card   0.0% (0/2) | google_pay   0.0% (0/1)
+[05:25] apple_pay   0.0% (0/4) | card   0.0% (0/1) | google_pay   0.0% (0/1)
+[05:26] card   0.0% (0/1)
+[05:27] apple_pay   0.0% (0/1) | card   0.0% (0/5)
+[05:28] apple_pay   0.0% (0/2) | card   0.0% (0/3) | google_pay   0.0% (0/1) | qr   0.0% (0/1)
+[05:29] apple_pay   0.0% (0/1) | card   0.0% (0/3) | google_pay   0.0% (0/1) | qr   0.0% (0/1)
+[05:30] apple_pay   0.0% (0/3) | card   0.0% (0/5) | google_pay   0.0% (0/1)
+[05:31] card   0.0% (0/3) | google_pay   0.0% (0/2)
+[05:32] apple_pay   0.0% (0/3) | card   0.0% (0/2) | google_pay   0.0% (0/1)
+  ALERT  05:33  card: failure rate 100.0% (2 of 2) is above 10%
+[05:33] card 100.0% (2/2) | google_pay   0.0% (0/3)
+  ALERT  05:34  card: failure rate 66.7% (2 of 3) is above 10%
+[05:34] card  66.7% (2/3) | google_pay   0.0% (0/2)
+[05:35] card   0.0% (0/4) | google_pay   0.0% (0/1)
+  ALERT  05:36  apple_pay: failure rate 100.0% (1 of 1) is above 10%
+[05:36] apple_pay 100.0% (1/1) | card   0.0% (0/3) | google_pay   0.0% (0/1)
+[05:37] apple_pay   0.0% (0/1) | card   0.0% (0/5)
+[05:38] card   0.0% (0/3)
+[05:39] apple_pay   0.0% (0/1) | google_pay   0.0% (0/1)
+[05:40] card   0.0% (0/3)
+[05:41] apple_pay   0.0% (0/1) | card   0.0% (0/4) | google_pay   0.0% (0/2)
+  ALERT  05:42  card: failure rate 33.3% (1 of 3) is above 10%
+[05:42] apple_pay   0.0% (0/1) | card  33.3% (1/3) | google_pay   0.0% (0/2)
+[05:43] apple_pay   0.0% (0/1) | card   0.0% (0/4)
+  ALERT  05:44  google_pay: failure rate 100.0% (1 of 1) is above 10%
+[05:44] apple_pay   0.0% (0/1) | card   0.0% (0/2) | google_pay 100.0% (1/1)
+[05:45] apple_pay   0.0% (0/2) | google_pay   0.0% (0/1)
+[05:46] apple_pay   0.0% (0/1) | card   0.0% (0/3)
+[05:47] apple_pay   0.0% (0/1) | card   0.0% (0/3) | google_pay   0.0% (0/1)
+[05:48] card   0.0% (0/1) | google_pay   0.0% (0/2)
+[05:49] card   0.0% (0/3)
+[05:50] card   0.0% (0/2)
+[05:51] apple_pay   0.0% (0/1) | card   0.0% (0/6)
+[05:52] apple_pay   0.0% (0/1) | card   0.0% (0/2)
+[05:53] card   0.0% (0/1) | google_pay   0.0% (0/1)
+[05:54] apple_pay   0.0% (0/2) | card   0.0% (0/7)
+  ALERT  05:55  card: failure rate 50.0% (2 of 4) is above 10%
+[05:55] apple_pay   0.0% (0/1) | card  50.0% (2/4) | google_pay   0.0% (0/1)
+[05:56] apple_pay   0.0% (0/2) | card   0.0% (0/3) | google_pay   0.0% (0/1)
+[05:57] card   0.0% (0/2)
+  ALERT  05:58  apple_pay: failure rate 25.0% (1 of 4) is above 10%
+[05:58] apple_pay  25.0% (1/4) | card   0.0% (0/3) | google_pay   0.0% (0/2)
+[05:59] apple_pay   0.0% (0/3) | card   0.0% (0/5) | google_pay   0.0% (0/1)
+  ALERT  06:00  card: failure rate 20.0% (1 of 5) is above 10%
+  ALERT  06:00  google_pay: failure rate 50.0% (1 of 2) is above 10%
+[06:00] apple_pay   0.0% (0/3) | card  20.0% (1/5) | google_pay  50.0% (1/2)
+[06:01] apple_pay   0.0% (0/3) | card   0.0% (0/8) | google_pay   0.0% (0/1)
+[06:02] apple_pay   0.0% (0/1) | card   0.0% (0/4) | google_pay   0.0% (0/5)
+  ALERT  06:03  apple_pay: failure rate 100.0% (1 of 1) is above 10%
+  ALERT  06:03  card: failure rate 12.5% (1 of 8) is above 10%
+[06:03] apple_pay 100.0% (1/1) | card  12.5% (1/8) | google_pay   0.0% (0/1)
+  ALERT  06:04  google_pay: failure rate 20.0% (1 of 5) is above 10%
+[06:04] apple_pay   0.0% (0/1) | card   0.0% (0/3) | google_pay  20.0% (1/5)
+  ALERT  06:05  apple_pay: failure rate 100.0% (1 of 1) is above 10%
+[06:05] apple_pay 100.0% (1/1) | card   0.0% (0/6)
+[06:06] apple_pay   0.0% (0/4) | card   0.0% (0/4) | google_pay   0.0% (0/1)
+[06:07] apple_pay   0.0% (0/1) | card   0.0% (0/6) | google_pay   0.0% (0/2)
+[06:08] apple_pay   0.0% (0/1) | card   0.0% (0/7) | google_pay   0.0% (0/1)
+[06:09] card   9.1% (1/11) | google_pay   0.0% (0/3) | qr   0.0% (0/1)
+[06:10] apple_pay   0.0% (0/2) | card   0.0% (0/6) | google_pay   0.0% (0/1)
+  ALERT  06:11  card: failure rate 16.7% (1 of 6) is above 10%
+[06:11] apple_pay   0.0% (0/1) | card  16.7% (1/6) | google_pay   0.0% (0/1)
+[06:12] apple_pay   0.0% (0/1) | card   0.0% (0/9)
+[06:13] card   0.0% (0/7) | google_pay   0.0% (0/3)
+[06:14] apple_pay   0.0% (0/3) | card   0.0% (0/2) | google_pay   0.0% (0/4)
+  ALERT  06:15  google_pay: failure rate 66.7% (2 of 3) is above 10%
+[06:15] apple_pay   0.0% (0/2) | card   0.0% (0/1) | google_pay  66.7% (2/3)
+  ALERT  06:16  card: failure rate 20.0% (1 of 5) is above 10%
+[06:16] apple_pay   0.0% (0/1) | card  20.0% (1/5) | google_pay   0.0% (0/2) | qr   0.0% (0/1)
+  ALERT  06:17  card: failure rate 22.2% (2 of 9) is above 10%
+[06:17] apple_pay   0.0% (0/1) | card  22.2% (2/9) | google_pay   0.0% (0/1)
+  ALERT  06:18  apple_pay: failure rate 33.3% (1 of 3) is above 10%
+[06:18] apple_pay  33.3% (1/3) | card   0.0% (0/6) | google_pay   0.0% (0/2) | qr   0.0% (0/1)
+[06:19] apple_pay   0.0% (0/2) | card   0.0% (0/3) | google_pay   0.0% (0/1)
+  ALERT  06:20  apple_pay: failure rate 33.3% (1 of 3) is above 10%
+[06:20] apple_pay  33.3% (1/3) | card   0.0% (0/5) | google_pay   0.0% (0/2)
+  ALERT  06:21  card: failure rate 16.7% (1 of 6) is above 10%
+[06:21] apple_pay   0.0% (0/4) | card  16.7% (1/6) | google_pay   0.0% (0/2)
+  ALERT  06:22  apple_pay: failure rate 100.0% (1 of 1) is above 10%
+[06:22] apple_pay 100.0% (1/1) | card   0.0% (0/5) | google_pay   0.0% (0/2)
+[06:23] apple_pay   0.0% (0/1) | card   0.0% (0/4) | google_pay   0.0% (0/2)
+  ALERT  06:24  apple_pay: failure rate 33.3% (1 of 3) is above 10%
+[06:24] apple_pay  33.3% (1/3) | card   0.0% (0/3) | google_pay   0.0% (0/1)
+[06:25] apple_pay   0.0% (0/1) | card   0.0% (0/6) | google_pay   0.0% (0/3)
+  ALERT  06:26  card: failure rate 40.0% (2 of 5) is above 10%
+[06:26] apple_pay   0.0% (0/1) | card  40.0% (2/5) | google_pay   0.0% (0/2)
+[06:27] apple_pay   0.0% (0/2) | card   0.0% (0/2) | google_pay   0.0% (0/3)
+  ALERT  06:28  google_pay: failure rate 33.3% (1 of 3) is above 10%
+[06:28] apple_pay   0.0% (0/3) | card   0.0% (0/6) | google_pay  33.3% (1/3)
+[06:29] apple_pay   0.0% (0/4) | card   0.0% (0/7) | google_pay   0.0% (0/3)
+[06:30] apple_pay   0.0% (0/2) | card   0.0% (0/7) | google_pay   0.0% (0/2)
+[06:31] apple_pay   0.0% (0/3) | card   0.0% (0/6) | google_pay   0.0% (0/2)
+  ALERT  06:32  card: failure rate 16.7% (1 of 6) is above 10%
+[06:32] apple_pay   0.0% (0/1) | card  16.7% (1/6) | google_pay   0.0% (0/4) | qr   0.0% (0/1)
+  ALERT  06:33  card: failure rate 20.0% (1 of 5) is above 10%
+[06:33] apple_pay   0.0% (0/7) | card  20.0% (1/5) | google_pay   0.0% (0/1)
+[06:34] apple_pay   0.0% (0/1) | card   0.0% (0/6) | google_pay   0.0% (0/1)
+  ALERT  06:35  google_pay: failure rate 50.0% (1 of 2) is above 10%
+[06:35] apple_pay   0.0% (0/2) | card   0.0% (0/10) | google_pay  50.0% (1/2)
+[06:36] apple_pay   0.0% (0/8) | card   0.0% (0/6) | google_pay   0.0% (0/3)
+[06:37] apple_pay   0.0% (0/3) | card   0.0% (0/5) | google_pay   0.0% (0/1)
+[06:38] apple_pay   0.0% (0/5) | card   0.0% (0/10)
+  ALERT  06:39  card: failure rate 33.3% (1 of 3) is above 10%
+[06:39] apple_pay   0.0% (0/1) | card  33.3% (1/3) | google_pay   0.0% (0/1)
+[06:40] apple_pay   0.0% (0/4) | card   0.0% (0/6) | google_pay   0.0% (0/3)
+  ALERT  06:41  card: failure rate 25.0% (1 of 4) is above 10%
+[06:41] apple_pay   0.0% (0/1) | card  25.0% (1/4) | google_pay   0.0% (0/2)
+  ALERT  06:42  card: failure rate 25.0% (1 of 4) is above 10%
+[06:42] apple_pay   0.0% (0/1) | card  25.0% (1/4) | qr   0.0% (0/1)
+[06:43] apple_pay   0.0% (0/1) | card   0.0% (0/5)
+  ALERT  06:44  card: failure rate 20.0% (1 of 5) is above 10%
+[06:44] apple_pay   0.0% (0/2) | card  20.0% (1/5) | google_pay   0.0% (0/2)
+[06:45] apple_pay   0.0% (0/1) | card   0.0% (0/6) | google_pay   0.0% (0/3)
+[06:46] apple_pay   0.0% (0/1) | card   0.0% (0/3) | google_pay   0.0% (0/2)
+[06:47] apple_pay   0.0% (0/1) | card  10.0% (1/10) | google_pay   0.0% (0/2)
+[06:48] apple_pay   0.0% (0/1) | card   0.0% (0/8) | google_pay   0.0% (0/1) | qr   0.0% (0/1)
+  ALERT  06:49  card: failure rate 25.0% (1 of 4) is above 10%
+[06:49] apple_pay   0.0% (0/1) | card  25.0% (1/4) | google_pay   0.0% (0/1) | qr   0.0% (0/1)
+[06:50] apple_pay   0.0% (0/3) | card   0.0% (0/4) | google_pay   0.0% (0/1) | qr   0.0% (0/1)
+  ALERT  06:51  qr: failure rate 100.0% (1 of 1) is above 10%
+[06:51] apple_pay   0.0% (0/2) | card   0.0% (0/4) | google_pay   0.0% (0/2) | qr 100.0% (1/1)
+  ALERT  06:52  card: failure rate 20.0% (1 of 5) is above 10%
+[06:52] card  20.0% (1/5) | google_pay   0.0% (0/1) | qr   0.0% (0/1)
+[06:53] apple_pay   0.0% (0/3) | card   0.0% (0/7) | google_pay   0.0% (0/3) | qr   0.0% (0/1)
+[06:54] apple_pay   0.0% (0/5) | card   0.0% (0/5) | google_pay   0.0% (0/1) | qr   0.0% (0/1)
+[06:55] apple_pay   0.0% (0/4) | card   0.0% (0/2) | google_pay   0.0% (0/1)
+  ALERT  06:56  card: failure rate 16.7% (1 of 6) is above 10%
+[06:56] apple_pay   0.0% (0/4) | card  16.7% (1/6) | google_pay   0.0% (0/3) | qr   0.0% (0/1)
+[06:57] apple_pay   0.0% (0/1) | card   0.0% (0/9) | google_pay   0.0% (0/1)
+  ALERT  06:58  card: failure rate 33.3% (1 of 3) is above 10%
+[06:58] apple_pay   0.0% (0/1) | card  33.3% (1/3) | google_pay   0.0% (0/1)
+[06:59] apple_pay   0.0% (0/4) | card   0.0% (0/6) | google_pay   0.0% (0/1)
+[07:00] apple_pay   0.0% (0/1) | card   0.0% (0/8) | google_pay   0.0% (0/3)
+  ALERT  07:01  google_pay: failure rate 40.0% (2 of 5) is above 10%
+[07:01] apple_pay   0.0% (0/2) | card   0.0% (0/10) | google_pay  40.0% (2/5)
+  ALERT  07:02  card: failure rate 16.7% (2 of 12) is above 10%
+[07:02] apple_pay   0.0% (0/1) | card  16.7% (2/12) | google_pay   0.0% (0/1) | qr   0.0% (0/1)
+  ALERT  07:03  apple_pay: failure rate 14.3% (1 of 7) is above 10%
+[07:03] apple_pay  14.3% (1/7) | card   0.0% (0/12) | google_pay   0.0% (0/3) | qr   0.0% (0/1)
+  ALERT  07:04  apple_pay: failure rate 12.5% (1 of 8) is above 10%
+  ALERT  07:04  card: failure rate 14.3% (1 of 7) is above 10%
+[07:04] apple_pay  12.5% (1/8) | card  14.3% (1/7) | google_pay   0.0% (0/4)
+[07:05] apple_pay   0.0% (0/6) | card   0.0% (0/7) | google_pay   0.0% (0/1) | qr   0.0% (0/1)
+[07:06] apple_pay   0.0% (0/6) | card   0.0% (0/6) | google_pay   0.0% (0/2)
+  ALERT  07:07  apple_pay: failure rate 12.5% (1 of 8) is above 10%
+[07:07] apple_pay  12.5% (1/8) | card   9.1% (1/11) | google_pay   0.0% (0/1)
+  ALERT  07:08  card: failure rate 16.7% (1 of 6) is above 10%
+[07:08] apple_pay   0.0% (0/2) | card  16.7% (1/6) | google_pay   0.0% (0/1) | qr   0.0% (0/2)
+[07:09] apple_pay   0.0% (0/7) | card   0.0% (0/13)
+  ALERT  07:10  qr: failure rate 100.0% (1 of 1) is above 10%
+[07:10] apple_pay   0.0% (0/2) | card   0.0% (0/13) | qr 100.0% (1/1)
+  ALERT  07:11  google_pay: failure rate 50.0% (1 of 2) is above 10%
+[07:11] apple_pay   0.0% (0/6) | card   0.0% (0/9) | google_pay  50.0% (1/2) | qr   0.0% (0/2)
+  ALERT  07:12  apple_pay: failure rate 50.0% (1 of 2) is above 10%
+  ALERT  07:12  google_pay: failure rate 25.0% (1 of 4) is above 10%
+[07:12] apple_pay  50.0% (1/2) | card   0.0% (0/9) | google_pay  25.0% (1/4)
+  ALERT  07:13  apple_pay: failure rate 50.0% (2 of 4) is above 10%
+[07:13] apple_pay  50.0% (2/4) | card   9.1% (1/11) | google_pay   0.0% (0/1)
+[07:14] apple_pay   0.0% (0/4) | card   9.1% (1/11) | google_pay   0.0% (0/6)
+[07:15] apple_pay   0.0% (0/4) | card   0.0% (0/5) | google_pay   0.0% (0/3) | qr   0.0% (0/1)
+  ALERT  07:16  apple_pay: failure rate 28.6% (2 of 7) is above 10%
+  ALERT  07:16  card: failure rate 25.0% (3 of 12) is above 10%
+  ALERT  07:16  google_pay: failure rate 14.3% (1 of 7) is above 10%
+[07:16] apple_pay  28.6% (2/7) | card  25.0% (3/12) | google_pay  14.3% (1/7)
+  ALERT  07:17  card: failure rate 16.7% (1 of 6) is above 10%
+[07:17] apple_pay   0.0% (0/1) | card  16.7% (1/6) | google_pay   0.0% (0/4)
+[07:18] apple_pay   0.0% (0/3) | card   0.0% (0/8) | google_pay   0.0% (0/3)
+  ALERT  07:19  card: failure rate 14.3% (1 of 7) is above 10%
+[07:19] apple_pay   0.0% (0/3) | card  14.3% (1/7) | google_pay   0.0% (0/2) | qr   0.0% (0/1)
+  ALERT  07:20  google_pay: failure rate 20.0% (1 of 5) is above 10%
+[07:20] apple_pay   0.0% (0/5) | card   8.3% (1/12) | google_pay  20.0% (1/5)
+  ALERT  07:21  card: failure rate 12.5% (1 of 8) is above 10%
+[07:21] apple_pay   0.0% (0/3) | card  12.5% (1/8) | google_pay   0.0% (0/4) | qr   0.0% (0/2)
+  ALERT  07:22  apple_pay: failure rate 16.7% (1 of 6) is above 10%
+[07:22] apple_pay  16.7% (1/6) | card   0.0% (0/5) | google_pay   0.0% (0/4)
+  ALERT  07:23  card: failure rate 40.0% (2 of 5) is above 10%
+[07:23] apple_pay   0.0% (0/6) | card  40.0% (2/5) | google_pay   0.0% (0/2) | qr   0.0% (0/1)
+  ALERT  07:24  card: failure rate 22.2% (2 of 9) is above 10%
+[07:24] apple_pay   0.0% (0/9) | card  22.2% (2/9) | google_pay   0.0% (0/4) | qr   0.0% (0/1)
+  ALERT  07:25  apple_pay: failure rate 25.0% (1 of 4) is above 10%
+[07:25] apple_pay  25.0% (1/4) | card   0.0% (0/12) | google_pay   0.0% (0/3)
+  ALERT  07:26  card: failure rate 22.2% (2 of 9) is above 10%
+  ALERT  07:26  google_pay: failure rate 20.0% (1 of 5) is above 10%
+[07:26] apple_pay   0.0% (0/7) | card  22.2% (2/9) | google_pay  20.0% (1/5)
+  ALERT  07:27  apple_pay: failure rate 20.0% (1 of 5) is above 10%
+[07:27] apple_pay  20.0% (1/5) | card   0.0% (0/10) | google_pay   0.0% (0/4)
+[07:28] apple_pay   0.0% (0/3) | card   0.0% (0/8) | google_pay   0.0% (0/1)
+[07:29] apple_pay   0.0% (0/5) | card   0.0% (0/7) | google_pay   0.0% (0/2) | qr   0.0% (0/2)
+[07:30] apple_pay   0.0% (0/2) | card   0.0% (0/9) | google_pay   0.0% (0/1)
+  ALERT  07:31  apple_pay: failure rate 16.7% (1 of 6) is above 10%
+  ALERT  07:31  card: failure rate 14.3% (1 of 7) is above 10%
+[07:31] apple_pay  16.7% (1/6) | card  14.3% (1/7) | google_pay   0.0% (0/4) | qr   0.0% (0/1)
+[07:32] apple_pay   0.0% (0/1) | card   0.0% (0/5) | google_pay   0.0% (0/2)
+  ALERT  07:33  apple_pay: failure rate 40.0% (2 of 5) is above 10%
+[07:33] apple_pay  40.0% (2/5) | card   0.0% (0/15) | google_pay   0.0% (0/2)
+[07:34] apple_pay   0.0% (0/3) | card   0.0% (0/6) | google_pay   0.0% (0/4) | qr   0.0% (0/1)
+[07:35] apple_pay   0.0% (0/4) | card  10.0% (1/10) | google_pay   0.0% (0/4)
+  ALERT  07:36  card: failure rate 12.5% (1 of 8) is above 10%
+  ALERT  07:36  google_pay: failure rate 100.0% (1 of 1) is above 10%
+[07:36] apple_pay   0.0% (0/3) | card  12.5% (1/8) | google_pay 100.0% (1/1)
+[07:37] apple_pay   0.0% (0/2) | card   0.0% (0/8) | google_pay   0.0% (0/2)
+  ALERT  07:38  card: failure rate 16.7% (1 of 6) is above 10%
+[07:38] apple_pay   0.0% (0/2) | card  16.7% (1/6) | google_pay   0.0% (0/2) | qr   0.0% (0/1)
+[07:39] apple_pay   0.0% (0/2) | card   0.0% (0/10) | google_pay   0.0% (0/3)
+  ALERT  07:40  card: failure rate 11.1% (1 of 9) is above 10%
+[07:40] apple_pay   0.0% (0/4) | card  11.1% (1/9) | google_pay   0.0% (0/3) | qr   0.0% (0/1)
+  ALERT  07:41  apple_pay: failure rate 14.3% (1 of 7) is above 10%
+[07:41] apple_pay  14.3% (1/7) | card   0.0% (0/10) | google_pay   0.0% (0/1)
+  ALERT  07:42  apple_pay: failure rate 25.0% (1 of 4) is above 10%
+  ALERT  07:42  card: failure rate 22.2% (2 of 9) is above 10%
+  ALERT  07:42  google_pay: failure rate 33.3% (1 of 3) is above 10%
+[07:42] apple_pay  25.0% (1/4) | card  22.2% (2/9) | google_pay  33.3% (1/3)
+[07:43] apple_pay   0.0% (0/2) | card   0.0% (0/10) | google_pay   0.0% (0/2)
+[07:44] apple_pay   0.0% (0/4) | card   0.0% (0/11) | google_pay   0.0% (0/2) | qr   0.0% (0/1)
+  ALERT  07:45  card: failure rate 40.0% (2 of 5) is above 10%
+[07:45] apple_pay   0.0% (0/5) | card  40.0% (2/5) | google_pay   0.0% (0/4) | qr   0.0% (0/1)
+[07:46] apple_pay   0.0% (0/6) | card   8.3% (1/12) | google_pay   0.0% (0/3)
+  ALERT  07:47  card: failure rate 42.9% (3 of 7) is above 10%
+[07:47] apple_pay   0.0% (0/2) | card  42.9% (3/7) | qr   0.0% (0/1)
+  ALERT  07:48  card: failure rate 22.2% (2 of 9) is above 10%
+[07:48] apple_pay   0.0% (0/6) | card  22.2% (2/9) | google_pay   0.0% (0/4) | qr   0.0% (0/1)
+  ALERT  07:49  card: failure rate 25.0% (2 of 8) is above 10%
+[07:49] apple_pay   0.0% (0/1) | card  25.0% (2/8) | google_pay   0.0% (0/4)
+  ALERT  07:50  apple_pay: failure rate 14.3% (1 of 7) is above 10%
+[07:50] apple_pay  14.3% (1/7) | card   0.0% (0/9) | google_pay   0.0% (0/2)
+[07:51] apple_pay   0.0% (0/2) | card   7.1% (1/14) | google_pay   0.0% (0/3)
+[07:52] apple_pay   0.0% (0/2) | card   0.0% (0/7) | google_pay   0.0% (0/3)
+  ALERT  07:53  apple_pay: failure rate 16.7% (1 of 6) is above 10%
+  ALERT  07:53  card: failure rate 14.3% (1 of 7) is above 10%
+[07:53] apple_pay  16.7% (1/6) | card  14.3% (1/7) | google_pay   0.0% (0/4) | qr   0.0% (0/1)
+  ALERT  07:54  apple_pay: failure rate 14.3% (1 of 7) is above 10%
+[07:54] apple_pay  14.3% (1/7) | card   0.0% (0/7) | google_pay   0.0% (0/3)
+[07:55] apple_pay   0.0% (0/5) | card   0.0% (0/7) | google_pay   0.0% (0/1)
+  ALERT  07:56  apple_pay: failure rate 25.0% (1 of 4) is above 10%
+[07:56] apple_pay  25.0% (1/4) | card   0.0% (0/8) | google_pay   0.0% (0/3)
+[07:57] apple_pay   0.0% (0/3) | card   0.0% (0/8) | google_pay   0.0% (0/5) | qr   0.0% (0/1)
+[07:58] apple_pay   0.0% (0/7) | card   0.0% (0/9) | google_pay   0.0% (0/2)
+  ALERT  07:59  apple_pay: failure rate 14.3% (1 of 7) is above 10%
+  ALERT  07:59  card: failure rate 30.0% (3 of 10) is above 10%
+[07:59] apple_pay  14.3% (1/7) | card  30.0% (3/10) | google_pay   0.0% (0/4) | qr   0.0% (0/1)
+[08:00] apple_pay   0.0% (0/5) | card   7.7% (1/13) | qr   0.0% (0/1)
+[08:01] apple_pay   0.0% (0/4) | card   0.0% (0/12) | google_pay   0.0% (0/5)
+  ALERT  08:02  apple_pay: failure rate 33.3% (1 of 3) is above 10%
+[08:02] apple_pay  33.3% (1/3) | card  10.0% (1/10) | google_pay   0.0% (0/4) | qr   0.0% (0/1)
+  ALERT  08:03  apple_pay: failure rate 12.5% (1 of 8) is above 10%
+  ALERT  08:03  card: failure rate 11.1% (1 of 9) is above 10%
+  ALERT  08:03  google_pay: failure rate 20.0% (1 of 5) is above 10%
+[08:03] apple_pay  12.5% (1/8) | card  11.1% (1/9) | google_pay  20.0% (1/5) | qr   0.0% (0/1)
+  ALERT  08:04  apple_pay: failure rate 20.0% (1 of 5) is above 10%
+  ALERT  08:04  google_pay: failure rate 16.7% (1 of 6) is above 10%
+[08:04] apple_pay  20.0% (1/5) | card   8.3% (1/12) | google_pay  16.7% (1/6) | qr   0.0% (0/1)
+[08:05] apple_pay   0.0% (0/8) | card   0.0% (0/9) | google_pay   0.0% (0/3)
+  ALERT  08:06  card: failure rate 12.5% (1 of 8) is above 10%
+[08:06] apple_pay   0.0% (0/4) | card  12.5% (1/8) | google_pay   0.0% (0/5) | qr   0.0% (0/1)
+[08:07] apple_pay   0.0% (0/6) | card   5.0% (1/20) | google_pay   0.0% (0/3) | qr   0.0% (0/1)
+  ALERT  08:08  apple_pay: failure rate 50.0% (2 of 4) is above 10%
+  ALERT  08:08  card: failure rate 20.0% (1 of 5) is above 10%
+[08:08] apple_pay  50.0% (2/4) | card  20.0% (1/5) | google_pay   0.0% (0/6) | qr   0.0% (0/1)
+[08:09] apple_pay   0.0% (0/3) | card   0.0% (0/10) | google_pay   0.0% (0/1)
+[08:10] apple_pay   0.0% (0/9) | card   0.0% (0/15) | google_pay   0.0% (0/3)
+  ALERT  08:11  google_pay: failure rate 25.0% (1 of 4) is above 10%
+[08:11] apple_pay   0.0% (0/6) | card   0.0% (0/10) | google_pay  25.0% (1/4) | qr   0.0% (0/1)
+  ALERT  08:12  apple_pay: failure rate 20.0% (1 of 5) is above 10%
+[08:12] apple_pay  20.0% (1/5) | card   7.7% (1/13) | google_pay   0.0% (0/1) | qr   0.0% (0/1)
+  ALERT  08:13  apple_pay: failure rate 40.0% (2 of 5) is above 10%
+  ALERT  08:13  google_pay: failure rate 25.0% (1 of 4) is above 10%
+[08:13] apple_pay  40.0% (2/5) | card   0.0% (0/12) | google_pay  25.0% (1/4)
+  ALERT  08:14  qr: failure rate 50.0% (1 of 2) is above 10%
+[08:14] apple_pay   0.0% (0/3) | card   0.0% (0/8) | google_pay   0.0% (0/3) | qr  50.0% (1/2)
+[08:15] apple_pay   0.0% (0/7) | card   0.0% (0/14) | google_pay   0.0% (0/1) | qr   0.0% (0/1)
+  ALERT  08:16  apple_pay: failure rate 14.3% (1 of 7) is above 10%
+[08:16] apple_pay  14.3% (1/7) | card   9.1% (1/11) | google_pay   0.0% (0/3) | qr   0.0% (0/1)
+  ALERT  08:17  card: failure rate 14.3% (1 of 7) is above 10%
+[08:17] apple_pay   0.0% (0/5) | card  14.3% (1/7) | google_pay   0.0% (0/2) | qr   0.0% (0/2)
+  ALERT  08:18  apple_pay: failure rate 20.0% (1 of 5) is above 10%
+[08:18] apple_pay  20.0% (1/5) | card   5.0% (1/20) | google_pay   0.0% (0/3)
+[08:19] apple_pay   0.0% (0/7) | card   0.0% (0/7) | google_pay   0.0% (0/4)
+  ALERT  08:20  apple_pay: failure rate 20.0% (1 of 5) is above 10%
+[08:20] apple_pay  20.0% (1/5) | card   0.0% (0/8) | google_pay   0.0% (0/3) | qr   0.0% (0/1)
+[08:21] apple_pay   0.0% (0/5) | card   0.0% (0/10) | google_pay   0.0% (0/3)
+[08:22] apple_pay   0.0% (0/6) | card   0.0% (0/16) | google_pay   0.0% (0/8)
+  ALERT  08:23  card: failure rate 13.6% (3 of 22) is above 10%
+  ALERT  08:23  google_pay: failure rate 25.0% (1 of 4) is above 10%
+[08:23] apple_pay   0.0% (0/6) | card  13.6% (3/22) | google_pay  25.0% (1/4) | qr   0.0% (0/1)
+  ALERT  08:24  apple_pay: failure rate 25.0% (1 of 4) is above 10%
+  ALERT  08:24  google_pay: failure rate 20.0% (1 of 5) is above 10%
+[08:24] apple_pay  25.0% (1/4) | card   0.0% (0/14) | google_pay  20.0% (1/5)
+  ALERT  08:25  apple_pay: failure rate 12.5% (1 of 8) is above 10%
+[08:25] apple_pay  12.5% (1/8) | card   0.0% (0/15) | google_pay   0.0% (0/4) | qr   0.0% (0/1)
+[08:26] apple_pay   0.0% (0/5) | card   0.0% (0/10) | google_pay   0.0% (0/6)
+  ALERT  08:27  card: failure rate 17.6% (3 of 17) is above 10%
+[08:27] apple_pay   0.0% (0/9) | card  17.6% (3/17) | google_pay   0.0% (0/4)
+[08:28] apple_pay   0.0% (0/6) | card   0.0% (0/9) | google_pay   0.0% (0/3)
+  ALERT  08:29  card: failure rate 28.6% (2 of 7) is above 10%
+[08:29] apple_pay   0.0% (0/6) | card  28.6% (2/7) | google_pay   0.0% (0/1)
+[08:30] apple_pay   0.0% (0/8) | card   0.0% (0/4) | google_pay   0.0% (0/7)
+  ALERT  08:31  card: failure rate 18.2% (2 of 11) is above 10%
+[08:31] apple_pay   0.0% (0/5) | card  18.2% (2/11) | google_pay   0.0% (0/3) | qr   0.0% (0/1)
+[08:32] apple_pay   0.0% (0/4) | card   0.0% (0/12) | google_pay   0.0% (0/3)
+  ALERT  08:33  card: failure rate 14.3% (1 of 7) is above 10%
+[08:33] apple_pay   0.0% (0/4) | card  14.3% (1/7) | google_pay   0.0% (0/4)
+[08:34] apple_pay   0.0% (0/3) | card   0.0% (0/13) | google_pay   0.0% (0/3)
+[08:35] apple_pay   0.0% (0/1) | card   0.0% (0/13) | google_pay   0.0% (0/4) | qr   0.0% (0/1)
+  ALERT  08:36  card: failure rate 22.2% (2 of 9) is above 10%
+  ALERT  08:36  google_pay: failure rate 16.7% (2 of 12) is above 10%
+[08:36] apple_pay   0.0% (0/4) | card  22.2% (2/9) | google_pay  16.7% (2/12)
+[08:37] apple_pay   0.0% (0/4) | card   9.1% (1/11) | google_pay   0.0% (0/4) | qr   0.0% (0/2)
+[08:38] apple_pay  10.0% (1/10) | card   9.1% (1/11) | google_pay   0.0% (0/6)
+  ALERT  08:39  card: failure rate 14.3% (2 of 14) is above 10%
+[08:39] apple_pay   0.0% (0/8) | card  14.3% (2/14) | google_pay   0.0% (0/1)
+  ALERT  08:40  apple_pay: failure rate 33.3% (1 of 3) is above 10%
+[08:40] apple_pay  33.3% (1/3) | card   0.0% (0/14) | google_pay   0.0% (0/3) | qr   0.0% (0/1)
+[08:41] apple_pay   0.0% (0/3) | card   0.0% (0/6) | google_pay   0.0% (0/1)
+  ALERT  08:42  apple_pay: failure rate 50.0% (1 of 2) is above 10%
+[08:42] apple_pay  50.0% (1/2) | card   0.0% (0/12) | google_pay   0.0% (0/4)
+  ALERT  08:43  apple_pay: failure rate 16.7% (1 of 6) is above 10%
+  ALERT  08:43  card: failure rate 15.4% (2 of 13) is above 10%
+[08:43] apple_pay  16.7% (1/6) | card  15.4% (2/13) | google_pay   0.0% (0/6)
+  ALERT  08:44  apple_pay: failure rate 11.1% (1 of 9) is above 10%
+  ALERT  08:44  card: failure rate 16.7% (2 of 12) is above 10%
+  ALERT  08:44  google_pay: failure rate 16.7% (1 of 6) is above 10%
+[08:44] apple_pay  11.1% (1/9) | card  16.7% (2/12) | google_pay  16.7% (1/6) | qr   0.0% (0/1)
+  ALERT  08:45  apple_pay: failure rate 100.0% (1 of 1) is above 10%
+[08:45] apple_pay 100.0% (1/1) | card   9.1% (1/11) | google_pay   0.0% (0/3)
+  ALERT  08:46  card: failure rate 20.0% (1 of 5) is above 10%
+[08:46] apple_pay   0.0% (0/7) | card  20.0% (1/5) | google_pay   0.0% (0/4)
+[08:47] apple_pay   0.0% (0/7) | card   0.0% (0/20) | google_pay   0.0% (0/2) | qr   0.0% (0/1)
+[08:48] apple_pay   0.0% (0/6) | card  10.0% (1/10) | google_pay   0.0% (0/4)
+  ALERT  08:49  apple_pay: failure rate 14.3% (1 of 7) is above 10%
+[08:49] apple_pay  14.3% (1/7) | card   0.0% (0/17) | google_pay   0.0% (0/7)
+[08:50] apple_pay   0.0% (0/3) | card   0.0% (0/14) | google_pay   0.0% (0/5)
+  ALERT  08:51  card: failure rate 27.3% (3 of 11) is above 10%
+[08:51] apple_pay   0.0% (0/5) | card  27.3% (3/11) | google_pay   0.0% (0/2) | qr   0.0% (0/1)
+[08:52] apple_pay   0.0% (0/3) | card   0.0% (0/11) | google_pay   0.0% (0/4)
+[08:53] apple_pay   0.0% (0/5) | card   8.3% (1/12) | google_pay   0.0% (0/6)
+[08:54] apple_pay   0.0% (0/4) | card   0.0% (0/16) | google_pay   0.0% (0/3) | qr   0.0% (0/1)
+[08:55] apple_pay   0.0% (0/6) | card   6.7% (1/15) | google_pay   0.0% (0/3) | qr   0.0% (0/2)
+  ALERT  08:56  apple_pay: failure rate 14.3% (1 of 7) is above 10%
+[08:56] apple_pay  14.3% (1/7) | card   0.0% (0/11) | google_pay   0.0% (0/2)
+[08:57] apple_pay   0.0% (0/8) | card   7.1% (1/14) | google_pay   0.0% (0/5) | qr   0.0% (0/1)
+[08:58] apple_pay   0.0% (0/2) | card   0.0% (0/18) | google_pay   0.0% (0/1)
+[08:59] apple_pay   0.0% (0/6) | card   0.0% (0/9) | google_pay   0.0% (0/3) | qr   0.0% (0/3)
+  ALERT  09:00  apple_pay: failure rate 33.3% (2 of 6) is above 10%
+[09:00] apple_pay  33.3% (2/6) | card   0.0% (0/8) | google_pay   0.0% (0/4) | qr   0.0% (0/1)
+[09:01] apple_pay   0.0% (0/9) | card   6.7% (1/15) | google_pay   0.0% (0/2) | qr   0.0% (0/3)
+[09:02] apple_pay   0.0% (0/3) | card  10.0% (1/10) | google_pay   0.0% (0/5)
+[09:03] apple_pay   0.0% (0/3) | card   7.7% (1/13) | google_pay   0.0% (0/3)
+  ALERT  09:04  apple_pay: failure rate 14.3% (1 of 7) is above 10%
+[09:04] apple_pay  14.3% (1/7) | card   9.1% (1/11) | google_pay   0.0% (0/3)
+  ALERT  09:05  card: failure rate 12.5% (1 of 8) is above 10%
+[09:05] apple_pay   0.0% (0/14) | card  12.5% (1/8) | google_pay   0.0% (0/2)
+[09:06] apple_pay   0.0% (0/8) | card   0.0% (0/10) | google_pay   0.0% (0/2)
+  ALERT  09:07  apple_pay: failure rate 33.3% (1 of 3) is above 10%
+[09:07] apple_pay  33.3% (1/3) | card   8.3% (1/12) | google_pay   0.0% (0/1)
+[09:08] apple_pay   0.0% (0/4) | card   6.2% (1/16) | google_pay   0.0% (0/5)
+[09:09] apple_pay   0.0% (0/4) | card   0.0% (0/6) | google_pay   0.0% (0/3)
+  ALERT  09:10  google_pay: failure rate 14.3% (1 of 7) is above 10%
+[09:10] apple_pay   0.0% (0/6) | card   0.0% (0/10) | google_pay  14.3% (1/7) | qr   0.0% (0/2)
+[09:11] apple_pay   0.0% (0/6) | card   0.0% (0/9) | google_pay   0.0% (0/1)
+  ALERT  09:12  apple_pay: failure rate 33.3% (2 of 6) is above 10%
+  ALERT  09:12  card: failure rate 11.1% (1 of 9) is above 10%
+  ALERT  09:12  google_pay: failure rate 20.0% (1 of 5) is above 10%
+[09:12] apple_pay  33.3% (2/6) | card  11.1% (1/9) | google_pay  20.0% (1/5)
+[09:13] apple_pay   0.0% (0/7) | card   0.0% (0/10) | google_pay   0.0% (0/2) | qr   0.0% (0/1)
+  ALERT  09:14  card: failure rate 12.5% (2 of 16) is above 10%
+[09:14] apple_pay   0.0% (0/6) | card  12.5% (2/16)
+  ALERT  09:15  google_pay: failure rate 16.7% (1 of 6) is above 10%
+[09:15] apple_pay   0.0% (0/3) | card   0.0% (0/10) | google_pay  16.7% (1/6)
+[09:16] apple_pay   0.0% (0/8) | card   8.3% (1/12) | google_pay   0.0% (0/4) | qr   0.0% (0/1)
+[09:17] apple_pay   0.0% (0/6) | card   0.0% (0/8) | google_pay   0.0% (0/2)
+[09:18] google_pay   0.0% (0/1)
+
+read 12284 events, 120 of them repeats (0.98%)
+rejected as late: 67
+alerts raised: 175
+distinct events remembered: 12164

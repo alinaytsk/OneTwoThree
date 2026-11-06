@@ -1,0 +1,11 @@
+GROUP        split-test
+COORDINATOR  0
+STATE        Stable
+BALANCER     range
+MEMBERS      2
+TOTAL-LAG    279
+
+TOPIC     PARTITION  CURRENT-OFFSET  LOG-START-OFFSET  LOG-END-OFFSET  LAG   MEMBER-ID                                     CLIENT-ID  HOST
+payments  0          715             0                 822             107   rdkafka-b2f0130a-5b54-4e0a-9755-ff45b1f345ff  rdkafka    172.19.0.1
+payments  1          675             0                 773             98    rdkafka-b2f0130a-5b54-4e0a-9755-ff45b1f345ff  rdkafka    172.19.0.1
+payments  2          738             0                 812             74    rdkafka-d5426c60-3c95-4c12-bb41-86faa3e10bc7  rdkafka    172.19.0.1
