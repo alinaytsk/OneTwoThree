@@ -1,0 +1,5 @@
+"rows_in_view","unique_payments"
+"1000000","1000000"
+
+(inline)
+  data scanned: 1202.29 MB   run time: 3.33 s   id: 24976c43-5eb0-4d32-8d2c-c4a817641f41

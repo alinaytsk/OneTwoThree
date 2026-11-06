@@ -277,11 +277,23 @@ measuring the generator.
 Thirty-six times more events discarded — 21.7% of the stream, not the 2% that the batch query
 calls "late". The difference is the point. With zero grace a window closes the instant an event
 from the next minute arrives, so an event that is merely a few seconds out of order is already
-too late; the 2% figure counts only events late by more than a minute. The window numbers get
-worse in both directions: counts are lower because a fifth of the events never land, and the
-*shares* get noisier because small denominators move further on one failure. The alert count
-goes up while the data behind it gets thinner, which is the worst combination an on-call
-engineer can be handed.
+too late; the 2% figure counts only events late by more than a minute. What changes in the window numbers is best seen on the same minute of the same
+data, read twice:
+
+| Window | lateness = 120 s | lateness = 0 |
+|---|---|---|
+| 06:00 | card 12.5% (1/8) | card **33.3%** (1/3) |
+| 07:30 | card **0.0%** (0/11) | card **50.0%** (1/2) |
+| 08:45 | card 5.6% (1/18) | card **28.6%** (2/7) |
+
+The 07:30 window is the one to look at. With two minutes of grace it reports eleven card
+payments and no failures; with none it reports two payments, one of which failed, and raises an
+alert. Nothing about the payments changed - nine of the eleven events simply arrived after the
+window had been declared finished. The denominators collapse by roughly two thirds, and on what
+is left a single failure moves the share by tens of points. All three windows happen to move
+upward here, which on denominators of two and three is noise rather than a trend; the reliable
+part is that the numbers stop meaning anything. The alert count goes up while the data behind
+it gets thinner, which is the worst combination an on-call engineer can be handed.
 
 ### The set that grows for ever
 
@@ -303,6 +315,8 @@ on a metric, not a double charge, because the payment itself is deduplicated dow
 ## Part 4 — The same thing in the cloud
 
 ### The pipeline
+
+Also as a standalone image, for anywhere that does not render Mermaid: [`cloud/pipeline.svg`](cloud/pipeline.svg).
 
 ```mermaid
 flowchart LR

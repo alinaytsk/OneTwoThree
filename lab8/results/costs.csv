@@ -1,0 +1,11 @@
+query,format,data_scanned_mb,run_time_s,query_id
+02-scale,json,1202.29,2.61,f151c8ea-e82a-456c-aea6-1e18f11d2f02
+03-view-check,json,1202.29,3.33,24976c43-5eb0-4d32-8d2c-c4a817641f41
+04-turnover,json,1202.29,3.73,7281adf1-056d-48b3-b016-df93a94df227
+04-turnover-parquet,parquet,6.09,1.76,ab01d429-8bbf-423c-a67c-3f3a63b1ddfa
+05-failure-rate,json,1202.29,3.20,65119d7a-3c36-433e-8abb-f70df9bf8871
+05-failure-rate-parquet,parquet,0.64,1.01,af4d0b1d-99c1-44ac-ae79-cc9f55f31f5c
+06-peak-hours,json,1202.29,6.12,ae930ee6-3cce-44be-95f2-dc8117a1d71a
+06-peak-hours-parquet,parquet,12.99,1.88,bb86c2d0-f56b-41f9-a93e-ce517ab86579
+07-late-events,json,1202.29,1.95,ae8cd360-4cc6-48fb-ad63-de93bf954630
+10-stream-query,json,2.00,0.90,8296f7d1-d6a1-4023-a8e4-1ef2d41492da
