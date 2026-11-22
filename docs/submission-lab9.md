@@ -34,7 +34,8 @@ cannot be created without billing either.
 | 1 | ADR with the Part 1 service choices | ✅ [`docs/adr/0008-google-cloud-equivalents.md`](adr/0008-google-cloud-equivalents.md) |
 | 1 | `terraform init` and `terraform validate` output | ✅ [`docs/gcp/terraform-init-validate.txt`](gcp/terraform-init-validate.txt) |
 | 2 | Backend image without the Lambda adapter, run as Cloud Run runs it | ✅ `back/Dockerfile.cloudrun` + `gcp/local-demo/compose.yaml` |
-| 2 | Screenshot: frontend loads, one API call reads from the database | ⬜ **to take** — `docker compose -f gcp/local-demo/compose.yaml up --build`, then <http://localhost:8080> |
+| 2 | The stack running, verified | ✅ [`docs/gcp/cloudrun-local-verification.txt`](gcp/cloudrun-local-verification.txt) — captured 2026-11-23 |
+| 2 | Screenshot: frontend loads, one API call reads from the database | ⬜ **to take** — the stack is up at <http://localhost:8080/home> |
 | 3 | Cost table, with the free-tier assumptions | ✅ [`docs/lab9-costs.md`](lab9-costs.md) |
 | 4 | Colab notebook, own copy, outputs saved, shared "anyone with the link can view" | ⬜ **to do** — needs a Google account only, no card |
 | 4 | Looker Studio public dashboard over the OWID CO₂ dataset | ⬜ **to do** — line chart, geo chart, top-10 bar chart, one control |
@@ -100,9 +101,22 @@ Three details worth pointing at:
 The local proof that the image is a Cloud Run image and not a Lambda one:
 
 ```bash
-cd front && npm run build && cd ..
+cd front && npm run build && cd ..     # with no VITE_API_URL: the SPA calls /api on its own origin
 docker compose -f gcp/local-demo/compose.yaml up --build
 ```
+
+Run on 2026-11-23, with the output in
+[`docs/gcp/cloudrun-local-verification.txt`](gcp/cloudrun-local-verification.txt). What it shows:
+
+- `PORT=8080` in the environment, and `uvicorn --port 8080` as PID 1 - the whole Cloud Run
+  contract, and the reason no adapter is needed.
+- `mangum: absent`, `boto3: absent`, `anthropic: absent` inside the running container. The image
+  *cannot* fall back to the Lambda path.
+- `migrate` listed by `ps -a` as `Exited (0)` and not by `ps` - a job that ran to completion,
+  which is how `google_cloud_run_v2_job` behaves.
+- `GET /api/meetings` through the Hosting rewrite returning three rows read from PostgreSQL,
+  each with its participants resolved across the `meeting_participants` join table - the join
+  that Firestore would not have.
 
 - <http://localhost:8080> — nginx standing in for Firebase Hosting, rewriting `/api/**` exactly as
   `firebase.json` does

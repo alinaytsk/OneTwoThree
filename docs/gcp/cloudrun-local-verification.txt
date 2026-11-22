@@ -1,0 +1,43 @@
+Lab 9, Part 2 - the Cloud Run image, verified on a laptop
+Captured 2026-11-23. The stack is gcp/local-demo/compose.yaml.
+
+$ docker compose -f gcp/local-demo/compose.yaml ps
+SERVICE   STATUS                        PORTS
+api       Up About a minute (healthy)   0.0.0.0:8081->8080/tcp, [::]:8081->8080/tcp
+db        Up About a minute (healthy)   5432/tcp
+web       Up About a minute             0.0.0.0:8080->80/tcp, [::]:8080->80/tcp
+
+# The migrations container is absent from `ps` because it is a job, not a service: it
+# ran to completion and exited, which is exactly how google_cloud_run_v2_job behaves.
+$ docker compose -f gcp/local-demo/compose.yaml ps -a | grep migrate
+migrate Exited (0) About a minute ago
+
+# The $PORT contract: Cloud Run chooses the port, the container listens on it.
+$ docker compose ... exec api sh -c 'echo PORT=$PORT; tr \0 " " < /proc/1/cmdline'
+PORT=8080
+/usr/local/bin/python /usr/local/bin/uvicorn app.main:app --host 0.0.0.0 --port 8080 
+
+# No Lambda adapter in the image - not merely unused, absent.
+$ docker compose ... exec api python -c "importlib.util.find_spec(...)"
+mangum: absent
+boto3: absent
+anthropic: absent
+
+# The API as Cloud Run exposes it.
+$ curl -s localhost:8081/api/health
+{"status":"ok"}
+
+# The same call through the Firebase Hosting rewrite (nginx stands in for Hosting).
+$ curl -s -o /dev/null -w "%{http_code}" localhost:8080/api/health
+200
+
+# One API call that reads from the database, through that same rewrite.
+$ curl -s localhost:8080/api/meetings
+3 rows from PostgreSQL:
+  2026-11-23T08:00:00Z  Sprint planning  (2 participants)
+  2026-11-24T12:30:00Z  Lab 9 review: GCP migration  (2 participants)
+  2026-11-26T07:00:00Z  Cost comparison walkthrough  (2 participants)
+
+# The SPA itself, built with no VITE_API_URL: it calls /api on its own origin.
+$ curl -s -o /dev/null -w "%{http_code}" localhost:8080/
+200
