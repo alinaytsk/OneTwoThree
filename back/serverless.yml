@@ -8,7 +8,7 @@ provider:
 
 functions:
   api:
-    handler: main.handler
+    handler: app.lambda_handler.handler
     events:
       - http:
           path: /{proxy+}

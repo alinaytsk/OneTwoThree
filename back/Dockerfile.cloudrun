@@ -1,0 +1,56 @@
+# Backend image for Cloud Run.
+#
+# Three Dockerfiles now, because the three runtimes genuinely differ:
+#   Dockerfile          Docker Compose: uvicorn on a fixed 8000, migrations in the CMD
+#   Dockerfile.lambda   AWS Lambda: the Lambda base image, CMD is a dotted handler path
+#   Dockerfile.cloudrun this one: plain uvicorn on $PORT, no adapter at all
+#
+# What makes it a Cloud Run image rather than just a container:
+#
+#   * It listens on the port in $PORT. Cloud Run picks the port and passes it in; hard-coding
+#     8000 makes the revision fail its health check with nothing useful in the log.
+#   * It has no Mangum. The Lambda adapter translated API Gateway's event JSON into ASGI
+#     scope; Cloud Run sends ordinary HTTP, so the translation layer is not just unnecessary,
+#     it is the thing the lab asks to remove. `--no-deps` plus an explicit requirement list is
+#     how it stays out: mangum is still in pyproject.toml for the Lambda image.
+#   * It does not migrate on start-up. Cloud Run may start several instances at once, and
+#     concurrent `alembic upgrade head` against one database is a race. Migrations run as a
+#     Cloud Run job instead (gcp/run.tf), with this same image and a different command.
+#
+# The same image runs on a laptop exactly as Cloud Run runs it, which is the point:
+#   docker run -e PORT=8080 -p 8080:8080 --env-file ... meetings-cloudrun
+
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PORT=8080
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
+WORKDIR /app
+
+# Installed from an explicit list rather than from pyproject.toml, so that the Lambda-only and
+# AWS-only dependencies (mangum, boto3, anthropic) are absent from this image. It is a smaller
+# image and a smaller attack surface, and it makes "no Lambda adapter" true rather than merely
+# unused. Keep in step with back/pyproject.toml when the runtime dependencies change.
+RUN uv pip install --system --no-cache \
+      "fastapi>=0.115" \
+      "uvicorn[standard]>=0.30" \
+      "sqlalchemy>=2.0" \
+      "alembic>=1.13" \
+      "psycopg[binary]>=3.2" \
+      "pydantic[email]>=2.7" \
+      "pydantic-settings>=2.3" \
+      "pyjwt[crypto]>=2.9" \
+      "tzdata>=2024.1"
+
+COPY alembic.ini ./
+COPY alembic ./alembic
+COPY app ./app
+
+# Documentation only - Cloud Run reads $PORT, not EXPOSE.
+EXPOSE 8080
+
+# `sh -c` so that $PORT is expanded at run time by the shell rather than frozen at build time.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
