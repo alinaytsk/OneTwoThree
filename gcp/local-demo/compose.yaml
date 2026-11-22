@@ -1,0 +1,86 @@
+# The GCP stack, run on a laptop exactly as Google Cloud would run it.
+#
+# This is the submission route for "no GCP account": there is no billing account on the project,
+# so the Cloud Run service in gcp/ can be validated but never applied. What can be proved
+# without an account is the thing the lab actually cares about - that the image is a Cloud Run
+# image and not a Lambda one:
+#
+#   api       back/Dockerfile.cloudrun, started with PORT=8080 and nothing else.  No Mangum,
+#             no handler, no event JSON: Cloud Run sends HTTP and so does this.
+#   db        plain PostgreSQL 16, standing in for Cloud SQL for PostgreSQL.
+#   migrate   the same image with a different command, which is exactly how the Cloud Run job
+#             in gcp/run.tf applies migrations.
+#   web       nginx serving front/dist and rewriting /api/** to the api container, which is
+#             what firebase.json does with Firebase Hosting in front of Cloud Run.
+#
+#   docker compose -f gcp/local-demo/compose.yaml up --build
+#   open http://localhost:8080   (the site; the calendar reads from the database)
+#   open http://localhost:8081/api/docs   (the API directly, as Cloud Run exposes it)
+
+name: meetings-cloudrun
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: meetings
+      POSTGRES_PASSWORD: meetings
+      POSTGRES_DB: meetings
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meetings -d meetings"]
+      interval: 5s
+      retries: 10
+
+  # The Cloud Run job from gcp/run.tf: same image, different command, run to completion once.
+  migrate:
+    build:
+      context: ../../back
+      dockerfile: Dockerfile.cloudrun
+    command: sh -c "alembic upgrade head && python -m app.seed"
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: meetings
+      DB_PASSWORD: meetings
+      DB_NAME: meetings
+      SEED: "true"
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+
+  # The Cloud Run service. PORT is the entire contract: Cloud Run chooses it, the container
+  # listens on it. Nothing here knows it is not on Google Cloud.
+  api:
+    build:
+      context: ../../back
+      dockerfile: Dockerfile.cloudrun
+    environment:
+      PORT: "8080"
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: meetings
+      DB_PASSWORD: meetings
+      DB_NAME: meetings
+      # Empty pool id = auth disabled, every request acts as one local user. On Google Cloud
+      # these would be the Cognito values, since sign-in stays on AWS in Part 2.
+      COGNITO_USER_POOL_ID: ""
+      COGNITO_CLIENT_ID: ""
+      CORS_ORIGINS: http://localhost:8080
+    ports: ["8081:8080"]
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/health')"]
+      interval: 10s
+      retries: 5
+
+  # Firebase Hosting's stand-in: static files plus the /api/** rewrite to Cloud Run.
+  web:
+    image: nginx:1.27-alpine
+    volumes:
+      - ../../front/dist:/usr/share/nginx/html:ro
+      - ./hosting.conf:/etc/nginx/conf.d/default.conf:ro
+    ports: ["8080:80"]
+    depends_on:
+      api: { condition: service_healthy }

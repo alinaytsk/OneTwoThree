@@ -1,0 +1,51 @@
+{
+  "_comment": [
+    "Firebase Hosting config for the GCP deployment (gcp/). Terraform creates the site;",
+    "the content is released with `firebase deploy --only hosting`, because a Hosting deploy",
+    "is a content release rather than an infrastructure change.",
+    "",
+    "The /api/** rewrite is the important line. It sends API calls to the Cloud Run service",
+    "from the site's own origin, so the browser never makes a cross-origin request and CORS",
+    "stops mattering - the same thing the CloudFront behaviour did for the Lambda URL in Lab 4.",
+    "Because of it the SPA is built with no VITE_API_URL at all: it calls /api/... relatively.",
+    "",
+    "serviceId and region must match google_cloud_run_v2_service.api in gcp/run.tf."
+  ],
+  "hosting": {
+    "public": "front/dist",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "run": {
+          "serviceId": "meetings-api",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ],
+    "headers": [
+      {
+        "source": "/assets/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "source": "/index.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      }
+    ]
+  }
+}

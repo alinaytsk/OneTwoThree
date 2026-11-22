@@ -1,0 +1,24 @@
+$ cd gcp && terraform init -input=false
+Initializing the backend...
+
+Initializing provider plugins...
+- Finding hashicorp/google-beta versions matching "~> 6.0"...
+- Finding hashicorp/random versions matching "~> 3.6"...
+- Finding hashicorp/google versions matching "~> 6.0"...
+- Using previously-installed hashicorp/google-beta v6.50.0
+- Using previously-installed hashicorp/random v3.9.1
+- Using previously-installed hashicorp/google v6.50.0
+
+Terraform has been successfully initialized!
+
+You may now begin working with Terraform. Try running "terraform plan" to see
+any changes that are required for your infrastructure. All Terraform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Terraform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.
+
+$ terraform validate
+Success! The configuration is valid.
+

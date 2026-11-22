@@ -27,7 +27,7 @@ If a host port is already taken, change `DB_PORT`, `BACKEND_PORT` or `FRONTEND_P
 compose.yaml      # db, backend, frontend
 back/             # FastAPI + SQLAlchemy 2 + Alembic
   app/
-    main.py       # app, CORS, error handlers
+    main.py       # app, CORS, error handlers (no Lambda adapter: see lambda_handler.py)
     lambda_handler.py # AWS Lambda entry point (Mangum) + migrate action
     models.py     # User, Meeting (owner_id → users, agenda + ai_suggestion JSONB), Participant,
                   # meeting_participants
@@ -40,7 +40,9 @@ back/             # FastAPI + SQLAlchemy 2 + Alembic
     ai/           # agenda parser: agenda.py (the pure function), agenda_lambda.py (its Lambda),
                   # hello.py (`make llm-hello`)
   alembic/        # migrations (run on container start; on AWS via `make aws-backend-migrate`)
-  Dockerfile.lambda # AWS Lambda image
+  Dockerfile      # Docker Compose image: uvicorn on a fixed 8000
+  Dockerfile.lambda   # AWS Lambda image: Lambda base, CMD is a dotted handler path
+  Dockerfile.cloudrun # Cloud Run image: uvicorn on $PORT, no Mangum, no deps it cannot use
   tests/
 front/            # Vite + React + TypeScript + Tailwind + shadcn/ui
   src/
@@ -66,6 +68,16 @@ infra/            # One Terraform root module + the CloudFormation that has not 
   outputs.tf      # everything the Makefile and the frontend build read
   cognito.yaml backend-ecr.yaml backend.yaml frontend.yaml   # still CloudFormation
   lambda/         # report_mailer.py — zipped and deployed by Terraform
+gcp/              # Lab 9: the same core on Google Cloud, never applied (no billing account)
+  versions.tf     # google + google-beta providers; the HCP block is commented, see the file
+  apis.tf         # the project's APIs, so a fresh project is reproducible
+  iam.tf          # the Cloud Run runtime service account. Deliberately cannot deploy
+  database.tf     # Cloud SQL db-f1-micro, its password generated into Secret Manager
+  run.tf          # the Cloud Run service, and migrations as a Cloud Run job
+  registry.tf     # Artifact Registry, keeping the 3 newest images inside the 0.5 GB free tier
+  hosting.tf      # the Firebase Hosting site (content is released by the Firebase CLI)
+  local-demo/     # the same stack on a laptop: compose.yaml + the hosting rewrite in nginx
+firebase.json     # Hosting config: /api/** rewritten to Cloud Run, so the SPA needs no CORS
 tf-bootstrap/     # the IAM OIDC provider and the role HCP Terraform assumes (local state)
 tf-playground/    # the Part 1 exercise module; disposable
 ```
@@ -250,6 +262,90 @@ make aws-frontend-https-check # 3. curl https://onetwothree.dobosevych.com/
 **Cost.** There is no load balancer, NAT gateway or public IPv4 address. Lambda and function URLs fit in the always-free tier for a small app. CloudFront runs on the flat-rate Free plan, which costs $0 with no overage charges and also covers its WAF web ACL (a per-IP rate limit). Requests that WAF blocks don't count toward the plan's allowance. Aurora Serverless v2 has no free tier. With `DbMinCapacity=0` it pauses after 5 idle minutes, and then you pay only for storage (about $0.10/GB-month). While active it costs about $0.12 per ACU-hour. The first request after a pause waits about 15 seconds while Aurora resumes. The DB credentials secret costs $0.40/month. Run `make aws-destroy` when you are done. It keeps a final Aurora snapshot.
 
 On AWS the backend reads `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` and `DB_PASSWORD` instead of `DATABASE_URL`. The password is generated in Secrets Manager and resolved into the function's environment at deploy time, so the VPC needs no internet access. `DB_NULL_POOL=true` closes connections after each request, because idle connections from warm Lambdas would stop Aurora from pausing. Migrations do not run on cold start. `make aws-backend-migrate` runs them, and every `aws-backend-deploy` calls it.
+
+## Deploy to Google Cloud (API on Cloud Run, frontend on Firebase Hosting)
+
+Lab 9 asks what it would take to run this on a second cloud. `gcp/` is the answer as Terraform:
+Firebase Hosting for the SPA, Cloud Run for the API, Cloud SQL for PostgreSQL for the database,
+with Artifact Registry and Secret Manager behind them. The service-by-service reasoning is in
+[docs/adr/0008-google-cloud-equivalents.md](docs/adr/0008-google-cloud-equivalents.md) and the
+price comparison in [docs/lab9-costs.md](docs/lab9-costs.md).
+
+**It has never been applied.** The Google Cloud project exists and its APIs are on, but the
+account has no open billing account (`billingEnabled: false`), and nothing in `gcp/` can be
+created without one. The configuration is initialised, formatted and validated - the output is
+in [docs/gcp/terraform-init-validate.txt](docs/gcp/terraform-init-validate.txt) - and that is as
+far as it goes.
+
+### What still runs on AWS
+
+Only the frontend, the API and the database are described in `gcp/`. These stay on AWS, by
+decision rather than omission:
+
+| Stays on AWS | Why |
+| --- | --- |
+| Sign-in (Cognito + Google) | Cognito cannot export password hashes, so moving the pool costs every user a password reset. Identity Platform's 50,000 free MAU is the better deal and still not worth that. |
+| The weekly report (Scheduler, SQS, S3, SES) | Six pieces for a job that runs weekly and costs cents - and Google runs no transactional e-mail service, so a "full" migration still ends at SES or acquires a third-party API key. |
+| The agenda parser (Claude on Bedrock) | Vertex AI reaches the same models, but the trial credit does not cover partner models. Moving it turns a feature that runs on credit into one that costs cash. |
+
+The seam between the clouds is the ID token: the Cloud Run service verifies tokens issued by a
+Cognito pool in another cloud, which needs nothing but the issuer's public keys over HTTPS.
+
+### Deploy, if there were a billing account
+
+```bash
+cd gcp
+cp terraform.tfvars.example terraform.tfvars   # set project_id and image
+gcloud auth application-default login          # Terraform picks these up; no key is downloaded
+terraform init && terraform apply
+
+# build and push the Cloud Run image (not the Lambda one: $PORT, and no Mangum)
+docker build -f back/Dockerfile.cloudrun -t "$(terraform -chdir=gcp output -raw registry_repository)/backend:v1" back
+docker push "$(terraform -chdir=gcp output -raw registry_repository)/backend:v1"
+
+# migrations run as a Cloud Run job, not on cold start
+eval "$(terraform -chdir=gcp output -raw migrate_command)"
+
+# the SPA, with the /api/** rewrite from firebase.json pointing at Cloud Run
+cd front && npm run build && cd ..
+firebase deploy --only hosting --project <project id>
+```
+
+The frontend is built with **no** `VITE_API_URL`: `firebase.json` rewrites `/api/**` to the
+Cloud Run service, so the browser calls the API on the site's own origin and there is no CORS at
+all - the same thing the CloudFront behaviour does for the Lambda URL on the AWS side.
+
+### Stop the database
+
+`db-f1-micro` is the one resource here that does not scale to zero. Unlike Aurora Serverless it
+does not pause when idle: it runs and bills $0.0105 an hour until somebody stops it, which is
+about $7.67 a month for an app nobody has opened.
+
+```bash
+gcloud sql instances patch meetings-pg --activation-policy NEVER --project <project id>   # stop
+gcloud sql instances patch meetings-pg --activation-policy ALWAYS --project <project id>  # start
+```
+
+`terraform -chdir=gcp output stop_database_command` prints the first one with the right names in
+it. Storage is still charged while stopped ($1.70/month for 10 GB), so stopping saves about 78%,
+not everything. `terraform destroy` is what saves the rest.
+
+### Run the Cloud Run stack locally
+
+The image is the same one Cloud Run would run, so it runs on a laptop with nothing but `PORT`
+set. This is also the submission route when there is no billing account:
+
+```bash
+cd front && npm run build && cd ..
+docker compose -f gcp/local-demo/compose.yaml up --build
+```
+
+- the site: <http://localhost:8080> - nginx stands in for Firebase Hosting, rewriting `/api/**`
+- the API as Cloud Run exposes it: <http://localhost:8081/api/docs>
+
+`gcp/local-demo/compose.yaml` mirrors the deployment piece for piece: PostgreSQL for Cloud SQL,
+a one-shot `migrate` container for the Cloud Run job, and the API started with `PORT=8080` and
+nothing else.
 
 ## Changing the infrastructure
 
