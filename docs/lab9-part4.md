@@ -8,9 +8,9 @@ Google account. This file is the write-up; the links are the deliverable.
 
 | The billed demo | What was run instead | Where |
 | --- | --- | --- |
-| BigQuery: SQL over a public dataset, bytes processed noted | DuckDB over the same public dataset | notebook, section 3 |
-| Vision API OCR | Tesseract and EasyOCR on the same image | notebook, section 4 |
-| Document AI: a scanned invoice to structured output | Qwen3-VL 2B through Ollama: invoice to Markdown, then to JSON | notebook, sections 5-6 |
+| BigQuery: SQL over a public dataset, bytes processed noted | DuckDB over the same public dataset | notebook, section 1 |
+| Vision API OCR | Tesseract and EasyOCR on the same image | notebook, section 3 |
+| Document AI: a scanned invoice to structured output | Qwen3-VL 2B through Ollama: invoice to Markdown, then to JSON | notebook, sections 4-5 |
 | Looker Studio chart over a BigQuery result | Looker Studio over `owid-co2-data.csv` | public dashboard |
 
 ## The links
@@ -21,40 +21,35 @@ Google account. This file is the write-up; the links are the deliverable.
 
 ## The prompt used for invoice to JSON
 
-Run on the Markdown from section 5 and on the invoice image, with the same model, and compared
-against the expected answer in the notebook. Written out before the first run, because each
-rerun of that cell costs about 3.5 minutes on the free CPU runtime.
+Section 5 of the notebook fixes the *shape* of the answer with a JSON schema (`invoice_number`,
+`date`, `due_date`, `seller`, `buyer`, `items` of `description`/`qty`/`unit_price`, `subtotal`,
+`vat`, `total`) and leaves the *content* to the prompt. This is what went into `MY_PROMPT`, run
+once on the Markdown from section 4 and once on the image, and scored against the notebook's
+ground truth. It was written before the first run, because each run of that cell costs about
+3.5 minutes on the free CPU runtime.
 
 ```text
-You are reading a single invoice. Return its contents as JSON and nothing else:
-no commentary, no explanation, no Markdown code fence.
+Read the invoice and return its fields. Copy what is printed; do not calculate,
+correct or complete anything.
 
-Use exactly this shape, with exactly these keys:
+invoice_number  the invoice number, exactly as printed (e.g. INV-2026-0417).
+date            the invoice date as printed, format YYYY-MM-DD.
+due_date        the due date, format YYYY-MM-DD.
+seller          the party the invoice is FROM: its name and its address in one
+                string, separated by a comma, exactly as printed.
+buyer           the party the invoice is BILLED TO: name and address in one
+                string, separated by a comma, exactly as printed.
+items           one entry per row of the line-item table, in the printed order.
+                description is the row's text, copied word for word.
+                qty is a whole number. unit_price is the price of one unit.
+                Subtotal, VAT and Total are not items: never put them here.
+subtotal        the printed subtotal.
+vat             the printed VAT amount, not the percentage.
+total           the printed total.
 
-{
-  "invoice_number": string,
-  "invoice_date": string,          // ISO 8601, YYYY-MM-DD
-  "due_date": string,              // ISO 8601, YYYY-MM-DD
-  "currency": string,              // ISO 4217, e.g. "USD"
-  "vendor": {"name": string, "address": string},
-  "bill_to": {"name": string, "address": string},
-  "line_items": [
-    {"description": string, "quantity": number, "unit_price": number, "amount": number}
-  ],
-  "subtotal": number,
-  "tax": number,
-  "total": number
-}
-
-Rules:
-- Copy values from the invoice. Do not infer, correct or complete anything.
-- Any field that is not on the invoice is null. Never guess a value, and never drop a key.
-- Numbers are JSON numbers: no currency symbols, no thousands separators, a dot for the
-  decimal point. 1 234,50 EUR becomes 1234.50 with "currency": "EUR".
-- Dates are YYYY-MM-DD. If a date is ambiguous, prefer the format the rest of the invoice uses.
-- One object per line item, in the order they are printed. A line that is a subtotal, a tax
-  line or a total is not a line item.
-- Output JSON only, starting with { and ending with }.
+All amounts are plain numbers: no currency symbol, no thousands separator, a dot
+for the decimal point. A field that is not on the invoice is null, and no key is
+ever left out.
 ```
 
 ## The three sentences
