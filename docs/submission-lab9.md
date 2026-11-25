@@ -35,11 +35,13 @@ cannot be created without billing either.
 | 1 | `terraform init` and `terraform validate` output | ✅ [`docs/gcp/terraform-init-validate.txt`](gcp/terraform-init-validate.txt) |
 | 2 | Backend image without the Lambda adapter, run as Cloud Run runs it | ✅ `back/Dockerfile.cloudrun` + `gcp/local-demo/compose.yaml` |
 | 2 | The stack running, verified | ✅ [`docs/gcp/cloudrun-local-verification.txt`](gcp/cloudrun-local-verification.txt) — captured 2026-11-23 |
-| 2 | Screenshot: frontend loads, one API call reads from the database | ⬜ **to take** — the stack is up at <http://localhost:8080/home> |
+| 2 | Screenshot: frontend loads, one API call reads from the database | ⬜ **to take** — the stack is up again (2026-11-25); <http://localhost:8080> with the browser's network tab on `GET /api/meetings` |
 | 3 | Cost table, with the free-tier assumptions | ✅ [`docs/lab9-costs.md`](lab9-costs.md) |
-| 4 | Colab notebook, own copy, outputs saved, shared "anyone with the link can view" | ⬜ **to do** — needs a Google account only, no card |
-| 4 | Looker Studio public dashboard over the OWID CO₂ dataset | ⬜ **to do** — line chart, geo chart, top-10 bar chart, one control |
-| 4 | Three sentences: Markdown vs image, timings, when to pay for Document AI | ⬜ **after** the notebook runs |
+| 4 | Colab notebook, own copy, outputs saved, shared "anyone with the link can view" | ⬜ **to do** — needs a Google account only, no card; the link goes in [`docs/lab9-part4.md`](lab9-part4.md) |
+| 4 | Looker Studio public dashboard over the OWID CO₂ dataset | ⬜ **to do** — line chart, geo chart, top-10 bar chart, one control; steps in [`docs/lab9-part4.md`](lab9-part4.md) |
+| 4 | Three sentences: Markdown vs image, timings, when to pay for Document AI | ⬜ two of three **after** the notebook runs; the Document AI answer is written in [`docs/lab9-part4.md`](lab9-part4.md) |
+| 4 | The prompt for invoice → JSON, written before the first run | ✅ [`docs/lab9-part4.md`](lab9-part4.md) — each rerun is ~3.5 min on the free CPU runtime |
+| 4 | Lab 8 mapped onto BigQuery, Dataflow and Looker Studio | ✅ [`docs/lab9-part4.md`](lab9-part4.md) |
 
 ## Part 1 — The service choices
 
@@ -147,6 +149,17 @@ requests and starts following the clock: **$61.14 a month**, six times the entir
 bill in the busiest profile, for an app that may serve nobody. That is Aurora's trap with the sign
 flipped — on AWS a latency fix stops the database pausing, on GCP it stops the container scaling to
 zero. `gcp/run.tf` pins both settings the safe way with a comment saying why.
+
+## Part 4 — The demos, without a bill
+
+Written up in [`docs/lab9-part4.md`](lab9-part4.md): what replaces each billed demo, the two
+links, the prompt used for invoice → JSON, the three sentences, and Lab 8 mapped onto BigQuery,
+Dataflow and Looker Studio.
+
+The substitutions, in one line each: DuckDB over a public dataset instead of BigQuery; Tesseract
+and EasyOCR instead of the Vision API; Qwen3-VL 2B through Ollama turning a scanned invoice into
+Markdown and then into JSON instead of Document AI; Looker Studio over `owid-co2-data.csv`, which
+needs a Google account and no card.
 
 ## Clean up
 

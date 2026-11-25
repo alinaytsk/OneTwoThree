@@ -269,7 +269,8 @@ Lab 9 asks what it would take to run this on a second cloud. `gcp/` is the answe
 Firebase Hosting for the SPA, Cloud Run for the API, Cloud SQL for PostgreSQL for the database,
 with Artifact Registry and Secret Manager behind them. The service-by-service reasoning is in
 [docs/adr/0008-google-cloud-equivalents.md](docs/adr/0008-google-cloud-equivalents.md) and the
-price comparison in [docs/lab9-costs.md](docs/lab9-costs.md).
+price comparison in [docs/lab9-costs.md](docs/lab9-costs.md). The AI and data demos, run
+without a billing account, are in [docs/lab9-part4.md](docs/lab9-part4.md).
 
 **It has never been applied.** The Google Cloud project exists and its APIs are on, but the
 account has no open billing account (`billingEnabled: false`), and nothing in `gcp/` can be
