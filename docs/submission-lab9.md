@@ -35,9 +35,10 @@ cannot be created without billing either.
 | 1 | `terraform init` and `terraform validate` output | ✅ [`docs/gcp/terraform-init-validate.txt`](gcp/terraform-init-validate.txt) |
 | 2 | Backend image without the Lambda adapter, run as Cloud Run runs it | ✅ `back/Dockerfile.cloudrun` + `gcp/local-demo/compose.yaml` |
 | 2 | The stack running, verified | ✅ [`docs/gcp/cloudrun-local-verification.txt`](gcp/cloudrun-local-verification.txt) — captured 2026-11-23 |
-| 2 | Screenshot: frontend loads, one API call reads from the database | ⬜ **to take** — the stack is up again (2026-11-25); <http://localhost:8080> with the browser's network tab on `GET /api/meetings` |
+| 2 | Screenshot: frontend loads, one API call reads from the database | ✅ [`docs/lab9-screenshots/lab9-1-cloudrun-local.png`](lab9-screenshots/lab9-1-cloudrun-local.png), with the raw read beside it in `lab9-1b-api-meetings.png` |
 | 3 | Cost table, with the free-tier assumptions | ✅ [`docs/lab9-costs.md`](lab9-costs.md) |
-| 4 | Colab notebook, own copy, outputs saved, shared "anyone with the link can view" | ⬜ **to do** — needs a Google account only, no card; the link goes in [`docs/lab9-part4.md`](lab9-part4.md) |
+| 4 | Colab notebook, own copy, outputs saved, shared "anyone with the link can view" | ⬜ prompt written and sections 1-4 run ([`docs/lab9-part4-notebook.ipynb`](lab9-part4-notebook.ipynb)); the full `Run all` and the link are the last step |
+| 4 | Screenshots of the three demos | ✅ three of four in [`docs/lab9-screenshots/`](lab9-screenshots/); `4b` follows the full run |
 | 4 | Looker Studio public dashboard over the OWID CO₂ dataset | ⬜ **to do** — line chart, geo chart, top-10 bar chart, one control; steps in [`docs/lab9-part4.md`](lab9-part4.md) |
 | 4 | Three sentences: Markdown vs image, timings, when to pay for Document AI | ⬜ two of three **after** the notebook runs; the Document AI answer is written in [`docs/lab9-part4.md`](lab9-part4.md) |
 | 4 | The prompt for invoice → JSON, written before the first run | ✅ [`docs/lab9-part4.md`](lab9-part4.md) — each rerun is ~3.5 min on the free CPU runtime |

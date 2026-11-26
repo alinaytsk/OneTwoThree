@@ -75,6 +75,21 @@ for the decimal point. A field that is not on the invoice is null, and no key is
 ever left out.
 ```
 
+## The screenshots
+
+In [`docs/lab9-screenshots/`](lab9-screenshots/), and the notebook they come from is
+[`docs/lab9-part4-notebook.ipynb`](lab9-part4-notebook.ipynb) - my copy, with the prompt in
+`MY_PROMPT` and the outputs of the run.
+
+| File | What it shows |
+| --- | --- |
+| `lab9-1-cloudrun-local.png` | the SPA on `localhost:8080`, the week of 23-29 Nov 2026 with three meetings read from PostgreSQL through the Hosting rewrite |
+| `lab9-1b-api-meetings.png` | the same read as raw JSON: `GET /api/meetings`, participants resolved across the join table |
+| `lab9-2-duckdb-instead-of-bigquery.png` | SQL over a public Parquet dataset with DuckDB, in place of BigQuery |
+| `lab9-3-ocr-tesseract-easyocr.png` | the receipt read by Tesseract (23 words, mean confidence 95%) and by EasyOCR, both boxed, in place of the Vision API |
+| `lab9-4a-invoice-to-markdown.png` | the scanned invoice and the Markdown Qwen3-VL 2B made of it, in place of Document AI |
+| `lab9-4b-invoice-to-json-compare.png` | **to take after the Colab run**: the two JSON answers and the field-by-field score |
+
 ## The three sentences
 
 **Which input worked better, the Markdown or the image, and why.** `TODO after the run`
