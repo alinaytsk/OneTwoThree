@@ -19,6 +19,29 @@ Google account. This file is the write-up; the links are the deliverable.
   `TODO paste link`
 - **Looker Studio dashboard** (public): `TODO paste link`
 
+## The Looker Studio dashboard
+
+Source: `owid-co2-data.csv` (Our World in Data, CO2 and Greenhouse Gas Emissions), uploaded
+to Looker Studio as a file - no Cloud project and no billing, only a Google account. The data
+runs to 2025, so 2025 is the year the single-year charts use.
+
+The four elements:
+
+| Element | Dimension | Metric | Filter |
+| --- | --- | --- | --- |
+| Line chart | `year` | `co2` | `country` in Ukraine + two others |
+| Geo chart | `iso_code` (type *Country ISO code*) | `co2_per_capita` | `year = 2025` |
+| Bar chart, top 10 | `country` | `co2` | `year = 2025`, `iso_code` is not null; row limit 10 |
+| Control | drop-down on `country` (or a range on `year`) | - | - |
+
+Dropping the rows with no `iso_code` is what keeps *World*, *Asia* and *Europe* - which are
+aggregates, not countries - out of the top 10. Without that filter the chart is nonsense.
+
+**One thing I noticed in the data.** `TODO - one sentence`. Ukraine's own series is the obvious
+candidate and the numbers are in the CSV: 706 Mt of CO2 in 1990, 286 Mt by 2000 as heavy industry
+collapsed, then 211 Mt in 2021 and 143 Mt in 2022 - a 32% fall in the first year of the full-scale
+invasion - and 139 Mt in 2025, a fifth of the 1990 figure.
+
 ## The prompt used for invoice to JSON
 
 Section 5 of the notebook fixes the *shape* of the answer with a JSON schema (`invoice_number`,
